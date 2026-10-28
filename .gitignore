@@ -1,0 +1,8 @@
+# Файлы игры и большие артефакты разведки — только локально
+lab/GameFiles/
+build/
+*.xcodeproj/xcuserdata/
+DerivedData/
+.DS_Store
+lab/MacApps/
+__pycache__/

@@ -1,0 +1,104 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+import Foundation
+
+/// A game's Steam Cloud files for the logged-on account (Cloud.swift): the
+/// Cloud service methods over the CM, the bodies over HTTP.
+extension SteamSession {
+    /// The largest cloud file taken (Steam's per-file limit is lower).
+    static let cloudFileLimit = 256 << 20
+
+    public func cloudChangelist(appID: UInt32, timeout: Double) async throws -> CCloudGetAppFileChangelistResponse {
+        guard case .loggedOn(anonymous: false) = state else { throw SteamError.notLoggedOn }
+        let body = try await requireCM().serviceCall("Cloud.GetAppFileChangelist#1",
+                                                     CCloudGetAppFileChangelistRequest(appID: appID), authed: true, timeout: timeout)
+        return try CCloudGetAppFileChangelistResponse.decode(body)
+    }
+
+    /// A file's content, checked against Steam's size and SHA-1.
+    /// macport: URLSession bounds only the pause between packets, not a whole body, and a body can stall (a 36 MB
+    /// save sat for minutes while the others took 2–7 s): past 30 s plus 2 s a MB it is asked again, with a fresh
+    /// address from Steam, up to three times. The file's own name only in the log: its folders may carry the
+    /// account's Steam ID.
+    public func cloudDownload(appID: UInt32, name: String, timeout: Double) async throws -> [UInt8] {
+        let file = name.split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? name
+        var attempt = 1
+        while true {
+            do {
+                return try await cloudDownloadOnce(appID: appID, name: name, file: file, timeout: timeout)
+            } catch let SteamError.timeout(what) where attempt < 3 {
+                attempt += 1
+                log.warn("cloud", "\(file): \(what); asking again (\(attempt) of 3)")
+            }
+        }
+    }
+
+    private func cloudDownloadOnce(appID: UInt32, name: String, file: String, timeout: Double) async throws -> [UInt8] {
+        guard case .loggedOn(anonymous: false) = state else { throw SteamError.notLoggedOn }
+        let body = try await requireCM().serviceCall("Cloud.ClientFileDownload#1",
+                                                     CCloudClientFileDownloadRequest(appID: appID, filename: name),
+                                                     authed: true, timeout: timeout)
+        let r = try CCloudClientFileDownloadResponse.decode(body)
+        guard !r.encrypted else { throw SteamError.unsupported("encrypted cloud files are not supported") }
+        let started = Date()
+        let http = self.http, request = r.request
+        let raw = try await withDeadline(30 + Double(r.fileSize) / 500_000, "no whole body from \(request.host)") {
+            try await http.send(request, body: nil, maxBytes: Self.cloudFileLimit, label: "cloud download")
+        }
+        let content = try Cloud.content(raw, rawSize: r.rawFileSize, sha: r.sha.hex)
+        log.info("cloud", "\(file): \(r.fileSize) B from \(request.host) in " + String(format: "%.1f s", Date().timeIntervalSince(started)))
+        return content
+    }
+
+    /// Uploads files in one batch; returns the names Steam committed. A file
+    /// Steam refuses is logged and left out; the batch is completed either way,
+    /// so the next sync can begin another.
+    public func cloudUpload(appID: UInt32, files: [(name: String, data: [UInt8], time: UInt64)], timeout: Double) async throws -> [String] {
+        guard case .loggedOn(anonymous: false) = state else { throw SteamError.notLoggedOn }
+        let cm = try requireCM()
+        let batch = try CCloudBeginAppUploadBatchResponse.decode(try await cm.serviceCall(
+            "Cloud.BeginAppUploadBatch#1",
+            CCloudBeginAppUploadBatchRequest(appID: appID, machineName: deviceName, filesToUpload: files.map(\.name)),
+            authed: true, timeout: timeout))
+        var committed: [String] = []
+        var result: UInt32 = 1
+        for f in files {
+            let sha = SHA1.hash(f.data)
+            var ok = false
+            // The file's own name only: its folders may carry the account's Steam ID.
+            let file = f.name.split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? f.name
+            var step = "begin"
+            do {
+                let begin = try CCloudClientBeginFileUploadResponse.decode(try await cm.serviceCall(
+                    "Cloud.ClientBeginFileUpload#1",
+                    CCloudClientBeginFileUploadRequest(appID: appID, fileSize: UInt32(f.data.count), rawFileSize: UInt32(f.data.count),
+                                                       sha: sha, timeStamp: f.time, filename: f.name, batchID: batch.batchID),
+                    authed: true, timeout: timeout))
+                for (i, b) in begin.blocks.enumerated() {
+                    step = "block \(i + 1)/\(begin.blocks.count) (\(b.method) offset \(b.offset) length \(b.length)"
+                        + (b.body.map { ", body \($0.count)" } ?? "") + ")"
+                    let start = Int(b.offset), end = min(f.data.count, start + Int(b.length))
+                    guard start <= end else { throw SteamError.protocolChanged("cloud upload block past the file's end") }
+                    _ = try await http.send(b, body: b.body ?? Array(f.data[start..<end]), maxBytes: 1 << 20, label: "cloud upload")
+                }
+                ok = true
+            } catch {
+                result = 2
+                log.warn("cloud", "app \(appID): \(file) (\(f.data.count) bytes) not uploaded: \(step): \(error)")
+            }
+            do {
+                let commit = try CCloudClientCommitFileUploadResponse.decode(try await cm.serviceCall(
+                    "Cloud.ClientCommitFileUpload#1",
+                    CCloudClientCommitFileUploadRequest(succeeded: ok, appID: appID, sha: sha, filename: f.name),
+                    authed: true, timeout: timeout))
+                if ok, commit.committed { committed.append(f.name) } else { result = 2 }
+            } catch {
+                result = 2
+                log.warn("cloud", "app \(appID): \(file): commit (\(ok ? "sent" : "not sent")) refused: \(error)")
+            }
+        }
+        _ = try await cm.serviceCall("Cloud.CompleteAppUploadBatchBlocking#1",
+                                     CCloudCompleteAppUploadBatchRequest(appID: appID, batchID: batch.batchID, eresult: result),
+                                     authed: true, timeout: timeout)
+        return committed
+    }
+}

@@ -1,0 +1,472 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		18DACC921E08278ACF127FBD /* TouchGamepad.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB91DF3008BA66CD1D18665A /* TouchGamepad.swift */; };
+		19C59A36F61F097281F4438B /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC28E119202CFDE10C4DE52 /* App.swift */; };
+		27E37C9B859D3201768BED0F /* CertificateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49FC4ADD64D690A0897C71C9 /* CertificateStore.swift */; };
+		4C977D401DE701BAE8BCB2E3 /* MachOSign in Frameworks */ = {isa = PBXBuildFile; productRef = 438C4E73EB2A8306C40781F2 /* MachOSign */; };
+		5577E0BA7D2B53F93E8B7EB5 /* SteamCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE492AB92DBFF9B6CEF04146 /* SteamCenter.swift */; };
+		577D09660BAAB37AE0B701A5 /* MacRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0083016649E6B2873BFEF5EB /* MacRunner.swift */; };
+		5FB2CF78565C218A8F122096 /* MacportPrep in Frameworks */ = {isa = PBXBuildFile; productRef = F1801BA9BC10EA13D323E469 /* MacportPrep */; };
+		6534499F249B5182681AF9FA /* SignTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41BEC7347D997585E4609D45 /* SignTest.swift */; };
+		78286FA1C9CA10B7AE04C06C /* BG3Cloud.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206B077BAE4A243A73E16C7E /* BG3Cloud.swift */; };
+		A412E6ECBD190D65D82B424C /* GameFiles in Resources */ = {isa = PBXBuildFile; fileRef = 403436844D836935D0F93D77 /* GameFiles */; };
+		ADC7C44C9888A10BA3865CF7 /* PrepareRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA60D0A66D2D77B867C3B8F /* PrepareRun.swift */; };
+		B197559B01464A73BEA1D250 /* MacApps in Resources */ = {isa = PBXBuildFile; fileRef = F7A90AD974274D8250B000B7 /* MacApps */; };
+		C12BCE1E8F82C23885AA165E /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43D4096DAE973B31E2EB7B5A /* HomeView.swift */; };
+		D34DCFA7828D45F48406A379 /* BG3Language.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366A3A196997922915966632 /* BG3Language.swift */; };
+		DB6E3AE4A4E50A113CAE0214 /* FPSOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04788333754105229892BF2A /* FPSOverlay.swift */; };
+		DC965E0CF2DF0F06C820A5E2 /* SteamClientKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1742EA49B165E433411FA94B /* SteamClientKit */; };
+		DF18C3120C879EBF85FD89AB /* ContentKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9CA57FC50A0694E729735A0A /* ContentKit */; };
+		E66749202C95E04D19177D4B /* BG3Graphics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4212E6C51B066BEF4481EA /* BG3Graphics.swift */; };
+		E7043A697E23DC06DB9097AC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A91E41B915401133FFF55E6C /* Assets.xcassets */; };
+		F1ACD138CD54888F2E937D4E /* shims in Resources */ = {isa = PBXBuildFile; fileRef = E52F0A8693E1E7ADD4862E08 /* shims */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0083016649E6B2873BFEF5EB /* MacRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacRunner.swift; sourceTree = "<group>"; };
+		04788333754105229892BF2A /* FPSOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FPSOverlay.swift; sourceTree = "<group>"; };
+		1B4212E6C51B066BEF4481EA /* BG3Graphics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BG3Graphics.swift; sourceTree = "<group>"; };
+		206B077BAE4A243A73E16C7E /* BG3Cloud.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BG3Cloud.swift; sourceTree = "<group>"; };
+		27E2E7090015162B343FBAE0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		366A3A196997922915966632 /* BG3Language.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BG3Language.swift; sourceTree = "<group>"; };
+		403436844D836935D0F93D77 /* GameFiles */ = {isa = PBXFileReference; lastKnownFileType = folder; path = GameFiles; sourceTree = SOURCE_ROOT; };
+		41BEC7347D997585E4609D45 /* SignTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignTest.swift; sourceTree = "<group>"; };
+		43D4096DAE973B31E2EB7B5A /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		48E74710BAE622AAE674AD89 /* MacportLab.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MacportLab.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		49FC4ADD64D690A0897C71C9 /* CertificateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificateStore.swift; sourceTree = "<group>"; };
+		4B40298E92BD8C4A371D0A9F /* SteamClient */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SteamClient; path = ../vendor/playport/SteamClient; sourceTree = SOURCE_ROOT; };
+		6CC28E119202CFDE10C4DE52 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		7E0B3A0F342DC5447DFE67E1 /* MacportLab.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacportLab.entitlements; sourceTree = "<group>"; };
+		8F233831647BDA1158A7EB27 /* kit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = kit; path = ../kit; sourceTree = SOURCE_ROOT; };
+		A91E41B915401133FFF55E6C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BE492AB92DBFF9B6CEF04146 /* SteamCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SteamCenter.swift; sourceTree = "<group>"; };
+		CB91DF3008BA66CD1D18665A /* TouchGamepad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchGamepad.swift; sourceTree = "<group>"; };
+		CFA60D0A66D2D77B867C3B8F /* PrepareRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrepareRun.swift; sourceTree = "<group>"; };
+		E52F0A8693E1E7ADD4862E08 /* shims */ = {isa = PBXFileReference; lastKnownFileType = folder; name = shims; path = ../build/shims; sourceTree = SOURCE_ROOT; };
+		E9ACB28C528F22DFCFD6E5D9 /* ContentKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ContentKit; path = ../vendor/playport/ContentKit; sourceTree = SOURCE_ROOT; };
+		F7A90AD974274D8250B000B7 /* MacApps */ = {isa = PBXFileReference; lastKnownFileType = folder; path = MacApps; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		BA2742371622B2DF92EED332 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4C977D401DE701BAE8BCB2E3 /* MachOSign in Frameworks */,
+				5FB2CF78565C218A8F122096 /* MacportPrep in Frameworks */,
+				DC965E0CF2DF0F06C820A5E2 /* SteamClientKit in Frameworks */,
+				DF18C3120C879EBF85FD89AB /* ContentKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		47B76ED72DF0DAF5EE30E803 /* MacportLab */ = {
+			isa = PBXGroup;
+			children = (
+				6CC28E119202CFDE10C4DE52 /* App.swift */,
+				A91E41B915401133FFF55E6C /* Assets.xcassets */,
+				206B077BAE4A243A73E16C7E /* BG3Cloud.swift */,
+				1B4212E6C51B066BEF4481EA /* BG3Graphics.swift */,
+				366A3A196997922915966632 /* BG3Language.swift */,
+				49FC4ADD64D690A0897C71C9 /* CertificateStore.swift */,
+				04788333754105229892BF2A /* FPSOverlay.swift */,
+				43D4096DAE973B31E2EB7B5A /* HomeView.swift */,
+				27E2E7090015162B343FBAE0 /* Info.plist */,
+				7E0B3A0F342DC5447DFE67E1 /* MacportLab.entitlements */,
+				0083016649E6B2873BFEF5EB /* MacRunner.swift */,
+				CFA60D0A66D2D77B867C3B8F /* PrepareRun.swift */,
+				41BEC7347D997585E4609D45 /* SignTest.swift */,
+				BE492AB92DBFF9B6CEF04146 /* SteamCenter.swift */,
+				CB91DF3008BA66CD1D18665A /* TouchGamepad.swift */,
+			);
+			name = MacportLab;
+			path = Sources/MacportLab;
+			sourceTree = "<group>";
+		};
+		657B33A10DB8627883D92CDE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				48E74710BAE622AAE674AD89 /* MacportLab.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		663E5CA3DC5DA23201FE2167 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				E9ACB28C528F22DFCFD6E5D9 /* ContentKit */,
+				8F233831647BDA1158A7EB27 /* kit */,
+				4B40298E92BD8C4A371D0A9F /* SteamClient */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		C3414A2537B0045F5E97F607 = {
+			isa = PBXGroup;
+			children = (
+				403436844D836935D0F93D77 /* GameFiles */,
+				F7A90AD974274D8250B000B7 /* MacApps */,
+				E52F0A8693E1E7ADD4862E08 /* shims */,
+				47B76ED72DF0DAF5EE30E803 /* MacportLab */,
+				663E5CA3DC5DA23201FE2167 /* Packages */,
+				657B33A10DB8627883D92CDE /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		756E518A5DEC8BE8A32A78FE /* MacportLab */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9B8F1E7D1A4C0B28CD82069F /* Build configuration list for PBXNativeTarget "MacportLab" */;
+			buildPhases = (
+				A9158E75451DA5492182C110 /* Sources */,
+				88BA19570B37AFC5F71EE517 /* Resources */,
+				BA2742371622B2DF92EED332 /* Frameworks */,
+				786DE1351178BA22BC8A55FC /* Release without developer files */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MacportLab;
+			packageProductDependencies = (
+				438C4E73EB2A8306C40781F2 /* MachOSign */,
+				F1801BA9BC10EA13D323E469 /* MacportPrep */,
+				1742EA49B165E433411FA94B /* SteamClientKit */,
+				9CA57FC50A0694E729735A0A /* ContentKit */,
+			);
+			productName = MacportLab;
+			productReference = 48E74710BAE622AAE674AD89 /* MacportLab.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B72A73E54F7C7C442C34E262 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					756E518A5DEC8BE8A32A78FE = {
+						DevelopmentTeam = V6KX6679UL;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = EB4AB73BFB182C974A4AD8C4 /* Build configuration list for PBXProject "MacportLab" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = C3414A2537B0045F5E97F607;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				798916D726600DB4E639F3E5 /* XCLocalSwiftPackageReference "../vendor/playport/ContentKit" */,
+				9420C7D3654A9C53AD46F2AA /* XCLocalSwiftPackageReference "../kit" */,
+				B05F8DF740DA866B8C9008A2 /* XCLocalSwiftPackageReference "../vendor/playport/SteamClient" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 657B33A10DB8627883D92CDE /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				756E518A5DEC8BE8A32A78FE /* MacportLab */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		88BA19570B37AFC5F71EE517 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E7043A697E23DC06DB9097AC /* Assets.xcassets in Resources */,
+				A412E6ECBD190D65D82B424C /* GameFiles in Resources */,
+				B197559B01464A73BEA1D250 /* MacApps in Resources */,
+				F1ACD138CD54888F2E937D4E /* shims in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		786DE1351178BA22BC8A55FC /* Release without developer files */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Release without developer files";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$CONFIGURATION\" = Release ]; then\n  rm -rf \"$TARGET_BUILD_DIR/$WRAPPER_NAME/GameFiles\" \"$TARGET_BUILD_DIR/$WRAPPER_NAME/MacApps\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A9158E75451DA5492182C110 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				19C59A36F61F097281F4438B /* App.swift in Sources */,
+				78286FA1C9CA10B7AE04C06C /* BG3Cloud.swift in Sources */,
+				E66749202C95E04D19177D4B /* BG3Graphics.swift in Sources */,
+				D34DCFA7828D45F48406A379 /* BG3Language.swift in Sources */,
+				27E37C9B859D3201768BED0F /* CertificateStore.swift in Sources */,
+				DB6E3AE4A4E50A113CAE0214 /* FPSOverlay.swift in Sources */,
+				C12BCE1E8F82C23885AA165E /* HomeView.swift in Sources */,
+				577D09660BAAB37AE0B701A5 /* MacRunner.swift in Sources */,
+				ADC7C44C9888A10BA3865CF7 /* PrepareRun.swift in Sources */,
+				6534499F249B5182681AF9FA /* SignTest.swift in Sources */,
+				5577E0BA7D2B53F93E8B7EB5 /* SteamCenter.swift in Sources */,
+				18DACC921E08278ACF127FBD /* TouchGamepad.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1B6EFD5941782EF58E407127 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = V6KX6679UL;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		3219768F06C2BD28A12B7595 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = V6KX6679UL;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		59A59620CC074E984D7238C2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/MacportLab/MacportLab.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				INFOPLIST_FILE = Sources/MacportLab/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.redpax.macportlab;
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		DD671F666E31690422CFBFEB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/MacportLab/MacportLab.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				INFOPLIST_FILE = Sources/MacportLab/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.redpax.macportlab;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG MACPORT_DEVELOPER";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9B8F1E7D1A4C0B28CD82069F /* Build configuration list for PBXNativeTarget "MacportLab" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DD671F666E31690422CFBFEB /* Debug */,
+				59A59620CC074E984D7238C2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EB4AB73BFB182C974A4AD8C4 /* Build configuration list for PBXProject "MacportLab" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1B6EFD5941782EF58E407127 /* Debug */,
+				3219768F06C2BD28A12B7595 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		798916D726600DB4E639F3E5 /* XCLocalSwiftPackageReference "../vendor/playport/ContentKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../vendor/playport/ContentKit;
+		};
+		9420C7D3654A9C53AD46F2AA /* XCLocalSwiftPackageReference "../kit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../kit;
+		};
+		B05F8DF740DA866B8C9008A2 /* XCLocalSwiftPackageReference "../vendor/playport/SteamClient" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../vendor/playport/SteamClient;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1742EA49B165E433411FA94B /* SteamClientKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SteamClientKit;
+		};
+		438C4E73EB2A8306C40781F2 /* MachOSign */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MachOSign;
+		};
+		9CA57FC50A0694E729735A0A /* ContentKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ContentKit;
+		};
+		F1801BA9BC10EA13D323E469 /* MacportPrep */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MacportPrep;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = B72A73E54F7C7C442C34E262 /* Project object */;
+}

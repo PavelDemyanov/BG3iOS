@@ -1,0 +1,90 @@
+name: MacportLab
+options:
+  bundleIdPrefix: com.redpax
+  deploymentTarget:
+    iOS: "26.0"
+packages:
+  MacportKit:
+    path: ../kit
+  # Клиент Steam из Playport (GPL-3.0, vendor/playport/NOTICE.md).
+  SteamClient:
+    path: ../vendor/playport/SteamClient
+  ContentKit:
+    path: ../vendor/playport/ContentKit
+settings:
+  base:
+    DEVELOPMENT_TEAM: V6KX6679UL
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "6.0"
+    TARGETED_DEVICE_FAMILY: "1"
+targets:
+  MacportLab:
+    type: application
+    platform: iOS
+    dependencies:
+      - package: MacportKit
+        product: MachOSign
+      - package: MacportKit
+        product: MacportPrep
+      - package: SteamClient
+        product: SteamClientKit
+      - package: ContentKit
+        product: ContentKit
+    sources:
+      - Sources/MacportLab
+      - path: GameFiles
+        type: folder
+        buildPhase: resources
+      - path: MacApps
+        type: folder
+        buildPhase: resources
+      # Заменители системных библиотек (shims/build.sh): подготовка игры на телефоне кладёт их к игре.
+      - path: ../build/shims
+        type: folder
+        buildPhase: resources
+    # Повышенный лимит памяти (как у Playport): на 12-гигабайтном телефоне 6 ГБ при старте и 8 ГБ с Game Mode;
+    # без него iOS убивает BG3 (jetsam per-process-limit) в главном меню.
+    # Публичная сборка (Release) — без файлов для проверок разработчика: GameFiles — шейдеры BG3, раздавать их
+    # нельзя; MacApps — Mac-примеры. Подпись приложения идёт после всех фаз, так что удалять здесь можно.
+    postBuildScripts:
+      - name: Release without developer files
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "$CONFIGURATION" = Release ]; then
+            rm -rf "$TARGET_BUILD_DIR/$WRAPPER_NAME/GameFiles" "$TARGET_BUILD_DIR/$WRAPPER_NAME/MacApps"
+          fi
+    entitlements:
+      path: Sources/MacportLab/MacportLab.entitlements
+      properties:
+        com.apple.developer.kernel.increased-memory-limit: true
+    info:
+      path: Sources/MacportLab/Info.plist
+      properties:
+        CFBundleDisplayName: BG3iOS
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIFileSharingEnabled: true
+        # Игра: iOS включает Game Mode (меньше фоновой работы, ниже задержка контроллеров и AirPods).
+        LSApplicationCategoryType: public.app-category.games
+        GCSupportsGameMode: true
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        # Одна ориентация — остров камеры слева: под него разложен экранный геймпад (TouchGamepad).
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeRight]
+        # Ответ AltStore/SideStore с сертификатом подписи (CertificateStore.swift).
+        CFBundleURLTypes:
+          - CFBundleURLName: com.redpax.macport.certificate
+            CFBundleURLSchemes: [macport]
+        LSApplicationQueriesSchemes: [altstore-classic, sidestore]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.redpax.macportlab
+        SWIFT_STRICT_CONCURRENCY: minimal
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+      configs:
+        # Сборка разработчика: служебные запуски (--mac и т. п.), список Developer, приём копии с Mac,
+        # проверочный сертификат. Release (публичная) — только главный экран с лицензией Steam.
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG MACPORT_DEVELOPER
