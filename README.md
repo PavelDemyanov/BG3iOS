@@ -25,6 +25,9 @@ contain or distribute any game files: you can play only if your Steam account ow
   - The sticks appear wherever you put your finger (left half: left stick, right half: right stick) and disappear when
     you lift it. A quick double tap clicks the stick (L3/R3).
   - A short tap in the top third of the picture acts as a mouse click.
+- **Or play with a game controller**: choose **Controls → Game Controller** under the Play buttons and pair a DualSense,
+  DualShock 4 or Xbox controller in Settings › Bluetooth (DualSense: hold PS and Create until the light bar blinks).
+  The on-screen buttons are hidden while it's connected and come back if it disconnects.
 - **Show or hide the FPS counter**: start with **Play with FPS Counter**, or hold three fingers on the screen for about
   a second during play.
 - **Steam Cloud saves**: saves sync when BG3iOS opens and before you play, so you can continue on your PC or Mac. Copies

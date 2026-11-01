@@ -12,6 +12,9 @@
 // элементов. Такой контроллер не попадает в GCController.controllers() и сам о себе не объявляет — список
 // дополняется подменой метода, подключение объявляется уведомлением. «Меню» BG3 ловит устаревшим
 // controllerPausedHandler (buttonMenu игра не читает), «Вид» — buttonOptions.
+//
+// Играют подключённым контроллером (Controls.mode) — кнопок и стиков на экране нет, остаются щелчки и жест трёх
+// пальцев, а наш контроллер к игре подключается, только если подключённых не осталось (тогда появляются и кнопки).
 
 import GameController
 import ObjectiveC
@@ -23,6 +26,8 @@ enum TouchGamepad {
     // setValue у контроллера из withExtendedGamepad() может не звать обработчики — тогда зовём их сами.
     private static var manualHandlers = false
     private static var window: UIWindow?
+    private static var view: GamepadView?
+    private static var log: (String) -> Void = { _ in }
     private static var waiting: NSObjectProtocol?
     private static let haptic = UIImpactFeedbackGenerator(style: .light)
     private static var arrows: Set<Button> = []  // нажатые стрелки крестовины
@@ -38,22 +43,81 @@ enum TouchGamepad {
                                                          queue: .main) { note in
             nonisolated(unsafe) let object = note.object
             MainActor.assumeIsolated {
-                guard let window = object as? UIWindow, window !== host, window.windowLevel.rawValue > 0,
-                      controller == nil else { return }
+                guard let game = object as? UIWindow, game !== host, game.windowLevel.rawValue > 0,
+                      window == nil else { return }
                 if let waiting { NotificationCenter.default.removeObserver(waiting) }
                 waiting = nil
-                start(scene: window.windowScene, log: log)
+                start(scene: game.windowScene, log: log)
             }
         }
     }
 
+    // Окно поверх игры — всегда (щелчки, жест трёх пальцев); кнопки — смотря чем играют.
     static func start(scene: UIWindowScene?, log: @escaping (String) -> Void) {
-        guard controller == nil, let scene else { return }
+        guard window == nil, let scene else { return }
+        self.log = log
+        let pad = GamepadView()
+        let overlay = UIWindow(windowScene: scene)
+        overlay.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue + 50)
+        overlay.backgroundColor = .clear
+        overlay.rootViewController = GamepadController(pad: pad)
+        overlay.isHidden = false
+        window = overlay
+        view = pad
+        haptic.prepare()
+        if Controls.mode == .controller {
+            followControllers()
+        } else {
+            showButtons(true)
+        }
+    }
+
+    // Кнопки и стики на экране; первый показ подключает к игре наш контроллер.
+    private static func showButtons(_ show: Bool) {
+        view?.showsButtons = show
+        if show, controller == nil { connect() }
+    }
+
+    // Играют контроллером: кнопки на экране — только пока не подключено ни одного.
+    private static func followControllers() {
+        updateButtons(gone: nil)
+        for name in [Notification.Name.GCControllerDidConnect, .GCControllerDidDisconnect] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { note in
+                nonisolated(unsafe) let object = note.object as? GCController
+                MainActor.assumeIsolated {
+                    guard object !== controller else { return }  // наш — его подключение объявляем сами
+                    updateButtons(gone: name == .GCControllerDidDisconnect ? object : nil)
+                }
+            }
+        }
+        // Приняла ли игра подключённый контроллер (как у нашего — обработчики профиля и паузы).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            MainActor.assumeIsolated {
+                for pad in Controls.connected() {
+                    log("контроллер \(Controls.name(pad)) у игры: обработчик профиля " +
+                        "\(pad.extendedGamepad?.valueChangedHandler != nil ? "есть" : "нет"), " +
+                        "паузы \(pad.controllerPausedHandler != nil ? "есть" : "нет")")
+                }
+            }
+        }
+    }
+
+    private static func updateButtons(gone: GCController?) {
+        let pads = Controls.connected(except: gone)
+        guard view?.showsButtons != pads.isEmpty || gone == nil else { return }
+        showButtons(pads.isEmpty)
+        log(pads.isEmpty ? "контроллера нет — экранный геймпад"
+            : "контроллер: \(pads.map(Controls.name).joined(separator: ", ")), экранные кнопки спрятаны")
+    }
+
+    private static func connect() {
         let gamepad = GCController.withExtendedGamepad()
         guard let pad = gamepad.extendedGamepad else {
             log("геймпад: нет профиля extendedGamepad")
             return
         }
+        // Сразу, ещё до самопроверки: второй раз не подключаем, и за подключённый (Controls.connected) он не сойдёт.
+        controller = gamepad
         // Самопроверка: зовёт ли setValue обработчик профиля. Обработчики идут в handlerQueue — главная очередь
         // выполнит их раньше нашего блока, поставленного после.
         nonisolated(unsafe) var fired = false
@@ -67,16 +131,8 @@ enum TouchGamepad {
                 manualHandlers = !fired
                 // Ввод — сразу, не дожидаясь, пока игра разберёт главную очередь (она крутит её раз в кадр).
                 gamepad.handlerQueue = DispatchQueue(label: "macport.gamepad", qos: .userInteractive)
-                controller = gamepad
                 addToControllerList()
                 NotificationCenter.default.post(name: .GCControllerDidConnect, object: gamepad)
-                let overlay = UIWindow(windowScene: scene)
-                overlay.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue + 50)
-                overlay.backgroundColor = .clear
-                overlay.rootViewController = GamepadController()
-                overlay.isHidden = false
-                window = overlay
-                haptic.prepare()
                 log("геймпад подключён (свой), обработчики \(manualHandlers ? "зовём сами" : "зовёт GameController")")
                 // Приняла ли игра контроллер: она вешает обработчики на профиль и паузу («Меню»).
                 DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
@@ -177,7 +233,15 @@ extension GCController {
 
 // Как у окна игры: без полоски «домой», жесты у краёв — со второго свайпа, без строки состояния, остров слева.
 private final class GamepadController: UIViewController {
-    override func loadView() { view = GamepadView() }
+    private let pad: GamepadView
+    init(pad: GamepadView) {
+        self.pad = pad
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func loadView() { view = pad }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
     override var prefersStatusBarHidden: Bool { true }
@@ -185,7 +249,7 @@ private final class GamepadController: UIViewController {
 }
 
 // Весь экран: кнопки в боковых полосах, стики под пальцами. Касания мимо кнопок приходят сюда: по картинке —
-// стик, нажатие стика или щелчок, по полосам — никуда.
+// стик, нажатие стика или щелчок, по полосам — никуда. Без кнопок (играют контроллером) — только щелчки.
 private final class GamepadView: UIView {
     @MainActor private final class Stick {
         let left: Bool
@@ -211,6 +275,25 @@ private final class GamepadView: UIView {
     private var gameRect = CGRect.zero
     private var mouseRect = CGRect.zero  // верхняя треть картинки без краёв у полос
 
+    // Кнопки и стики. Прячутся — всё нажатое отпускается.
+    var showsButtons = false {
+        didSet {
+            guard showsButtons != oldValue else { return }
+            for (view, _) in buttons {
+                view.isHidden = !showsButtons
+                view.release()
+            }
+            guard !showsButtons else { return }
+            for stick in sticks.values {
+                stick.base.removeFromSuperview()
+                TouchGamepad.setStick(left: stick.left, x: 0, y: 0)
+                if stick.thumb { TouchGamepad.set(stick.left ? .l3 : .r3, pressed: false) }
+            }
+            sticks.removeAll()
+            lastTap = nil
+        }
+    }
+
     init() {
         buttons = [
             (PadButton(text: "LT", shape: .corner(left: true)), .lt), (PadButton(text: "LB", shape: .bumper), .lb),
@@ -230,6 +313,7 @@ private final class GamepadView: UIView {
         isMultipleTouchEnabled = true
         for (view, button) in buttons {
             view.onChange = { TouchGamepad.set(button, pressed: $0) }
+            view.isHidden = true
             addSubview(view)
         }
         FPSOverlay.shared.attachToggle(to: self, target: self, action: #selector(statsGesture(_:)))
@@ -310,7 +394,7 @@ private final class GamepadView: UIView {
             guard gameRect.contains(p) else { continue }
             let left = p.x < gameRect.midX
             // Второе касание двойного: стик сразу, с нажатием (L3/R3), пока палец на экране.
-            if let last = lastTap, touch.timestamp - last.time < Self.doubleTapSeconds,
+            if showsButtons, let last = lastTap, touch.timestamp - last.time < Self.doubleTapSeconds,
                hypot(p.x - last.point.x, p.y - last.point.y) < Self.doubleTapDistance,
                (last.point.x < gameRect.midX) == left, !sticks.values.contains(where: { $0.left == left }) {
                 lastTap = nil
@@ -334,8 +418,8 @@ private final class GamepadView: UIView {
             } else if let start = pending[id], hypot(p.x - start.x, p.y - start.y) > Self.startDistance {
                 pending[id] = nil
                 let left = start.x < gameRect.midX
-                // Этот стик уже держит другой палец — касание ни во что не превращается.
-                guard !sticks.values.contains(where: { $0.left == left }) else { continue }
+                // Этот стик уже держит другой палец (или стиков нет) — касание ни во что не превращается.
+                guard showsButtons, !sticks.values.contains(where: { $0.left == left }) else { continue }
                 let stick = makeStick(left: left, at: start)
                 sticks[id] = stick
                 move(stick, to: p)
@@ -362,7 +446,7 @@ private final class GamepadView: UIView {
                 if mouseRect.contains(start) {
                     TouchGamepad.tap(at: start, clicks: max(touch.tapCount, 1))
                     showClick(at: start)
-                } else {
+                } else if showsButtons {
                     lastTap = (touch.timestamp, start)
                 }
             }
@@ -421,6 +505,7 @@ private final class PadButton: UIView {
     }
 
     var onChange: ((Bool) -> Void)?
+    private var pressed = false
     var cornerRadius: CGFloat = 55 { didSet { setNeedsLayout() } }
     var scale: CGFloat = 1 { didSet { if scale != oldValue { applyScale() } } }  // подписи — вместе с кнопками
     private var symbol: String?
@@ -506,7 +591,13 @@ private final class PadButton: UIView {
         return box.intersection(area)
     }
 
+    // Кнопку спрятали под пальцем — отпустить: касание до неё может уже не дойти.
+    func release() {
+        if pressed { setPressed(false) }
+    }
+
     private func setPressed(_ pressed: Bool) {
+        self.pressed = pressed
         let color = pressed ? Self.active : Self.idle
         if case .corner = shape {
             CATransaction.begin()

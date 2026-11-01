@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Главный экран (интерфейс приложения — на английском, по решению владельца): дисклеймер при первом запуске,
 // затем Baldur's Gate 3 — вход в Steam, проверка лицензии, скачивание из Steam, подготовка, Play / Play with FPS
-// Counter. Играть можно только с лицензией: вход в Steam, игра в библиотеке аккаунта, установка из Steam через
-// приложение (SteamCenter.canPlay). Ниже — язык игры (BG3Language), сброс графики на оптимальную (BG3Graphics),
-// сейвы в Steam Cloud, сертификат подписи, аккаунт Steam и (в сборке разработчика) прежний список.
+// Counter, под ними — чем играть (Controls: экранный геймпад или контроллер). Играть можно только с лицензией: вход
+// в Steam, игра в библиотеке аккаунта, установка из Steam через приложение (SteamCenter.canPlay). Ниже — язык игры
+// (BG3Language), сброс графики на оптимальную (BG3Graphics), сейвы в Steam Cloud, сертификат подписи, аккаунт Steam
+// и (в сборке разработчика) прежний список.
 
+import GameController
 import SteamClientKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -20,6 +22,8 @@ struct HomeView: View {
     @State private var confirmGraphicsReset = false
     @State private var graphicsMessage: String?
     @State private var gameLanguage = BG3Language.current
+    @State private var controls = Controls.mode
+    @State private var controllers: [String] = []
     @State private var certificateText = ""
     @State private var certificateMessage: String?
     @State private var choosingCertificate = false
@@ -106,6 +110,11 @@ struct HomeView: View {
         .onChange(of: steam.account) { _, state in if case .signedIn = state { showSignIn = false } }
         .onAppear(perform: refreshCertificate)
         .onReceive(NotificationCenter.default.publisher(for: CertificateStore.changed)) { _ in refreshCertificate() }
+        .onAppear { refreshControllers(gone: nil) }
+        .onReceive(NotificationCenter.default.publisher(for: .GCControllerDidConnect)) { _ in refreshControllers(gone: nil) }
+        .onReceive(NotificationCenter.default.publisher(for: .GCControllerDidDisconnect)) {
+            refreshControllers(gone: $0.object as? GCController)
+        }
         .confirmationDialog("Signing Certificate", isPresented: $choosingCertificate) {
             ForEach([CertificateStore.Store.altStore, .sideStore], id: \.rawValue) { store in
                 Button("Get from \(store.title)") {
@@ -239,6 +248,15 @@ struct HomeView: View {
                 // Разделитель List равняется по первому тексту строки — здесь это «Play» внутри кнопки, и линия
                 // начиналась с середины. Ровняем по краю строки, как у остальных.
                 .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+                // Чем играть (Controls): экранный геймпад или подключённый контроллер.
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker("Controls", selection: $controls) {
+                        Text("Touch Gamepad").tag(Controls.Mode.touch)
+                        Text("Game Controller").tag(Controls.Mode.controller)
+                    }
+                    .onChange(of: controls) { _, mode in Controls.mode = mode }
+                    Text(controlsNote).font(.footnote).foregroundStyle(.secondary)
+                }
                 Button("Prepare Again") { steam.prepare() }.font(.footnote)
             }
         }
@@ -315,6 +333,25 @@ struct HomeView: View {
         let free = (try? home.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
             .volumeAvailableCapacityForImportantUsage ?? 0
         return String(format: "%.0f GB", Double(free) / 1e9)
+    }
+
+    private var controlsNote: String {
+        let names = controllers.joined(separator: ", ")
+        switch (controls, controllers.isEmpty) {
+        case (.touch, true):
+            return "On-screen buttons in the black bars; sticks appear under your fingers."
+        case (.touch, false):
+            return "On-screen buttons in the black bars; sticks appear under your fingers. \(names) works too."
+        case (.controller, true):
+            return "No controller connected. Pair a DualSense, DualShock 4 or Xbox controller in Settings › Bluetooth "
+                + "(DualSense: hold PS and Create until the light bar blinks). Until then, the on-screen buttons are shown."
+        case (.controller, false):
+            return "\(names) connected. The on-screen buttons appear only if it disconnects."
+        }
+    }
+
+    private func refreshControllers(gone: GCController?) {
+        controllers = Controls.connected(except: gone).map(Controls.name)
     }
 
     private func refreshCertificate() {

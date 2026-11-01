@@ -10,6 +10,7 @@
 		18DACC921E08278ACF127FBD /* TouchGamepad.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB91DF3008BA66CD1D18665A /* TouchGamepad.swift */; };
 		19C59A36F61F097281F4438B /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC28E119202CFDE10C4DE52 /* App.swift */; };
 		27E37C9B859D3201768BED0F /* CertificateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49FC4ADD64D690A0897C71C9 /* CertificateStore.swift */; };
+		38AF4E2E51544D53F71A2500 /* Controls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C2471C81A45FFF8D5D94CF1 /* Controls.swift */; };
 		4C977D401DE701BAE8BCB2E3 /* MachOSign in Frameworks */ = {isa = PBXBuildFile; productRef = 438C4E73EB2A8306C40781F2 /* MachOSign */; };
 		5577E0BA7D2B53F93E8B7EB5 /* SteamCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE492AB92DBFF9B6CEF04146 /* SteamCenter.swift */; };
 		577D09660BAAB37AE0B701A5 /* MacRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0083016649E6B2873BFEF5EB /* MacRunner.swift */; };
@@ -42,6 +43,7 @@
 		48E74710BAE622AAE674AD89 /* MacportLab.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MacportLab.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		49FC4ADD64D690A0897C71C9 /* CertificateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificateStore.swift; sourceTree = "<group>"; };
 		4B40298E92BD8C4A371D0A9F /* SteamClient */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SteamClient; path = ../vendor/playport/SteamClient; sourceTree = SOURCE_ROOT; };
+		6C2471C81A45FFF8D5D94CF1 /* Controls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Controls.swift; sourceTree = "<group>"; };
 		6CC28E119202CFDE10C4DE52 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		7E0B3A0F342DC5447DFE67E1 /* MacportLab.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MacportLab.entitlements; sourceTree = "<group>"; };
 		8F233831647BDA1158A7EB27 /* kit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = kit; path = ../kit; sourceTree = SOURCE_ROOT; };
@@ -78,6 +80,7 @@
 				1B4212E6C51B066BEF4481EA /* BG3Graphics.swift */,
 				366A3A196997922915966632 /* BG3Language.swift */,
 				49FC4ADD64D690A0897C71C9 /* CertificateStore.swift */,
+				6C2471C81A45FFF8D5D94CF1 /* Controls.swift */,
 				04788333754105229892BF2A /* FPSOverlay.swift */,
 				43D4096DAE973B31E2EB7B5A /* HomeView.swift */,
 				27E2E7090015162B343FBAE0 /* Info.plist */,
@@ -234,6 +237,7 @@
 				E66749202C95E04D19177D4B /* BG3Graphics.swift in Sources */,
 				D34DCFA7828D45F48406A379 /* BG3Language.swift in Sources */,
 				27E37C9B859D3201768BED0F /* CertificateStore.swift in Sources */,
+				38AF4E2E51544D53F71A2500 /* Controls.swift in Sources */,
 				DB6E3AE4A4E50A113CAE0214 /* FPSOverlay.swift in Sources */,
 				C12BCE1E8F82C23885AA165E /* HomeView.swift in Sources */,
 				577D09660BAAB37AE0B701A5 /* MacRunner.swift in Sources */,

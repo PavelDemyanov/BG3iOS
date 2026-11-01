@@ -104,7 +104,8 @@ enum MacRunner {
             // Строка статистики: видна с --fps или если её оставили включённой; три пальца — показать/спрятать.
             let noGamepad = ProcessInfo.processInfo.arguments.contains("--no-gamepad")
             FPSOverlay.shared.start(visible: fps, gestureOnGameWindow: noGamepad)
-            // Экранный геймпад — всегда (без него в BG3 не повернуть камеру); --no-gamepad — без него, тогда касания
+            // Экранный геймпад — всегда (без него в BG3 не повернуть камеру), а если играют подключённым контроллером
+            // (Controls.mode), — без кнопок, пока контроллер подключён. --no-gamepad — без него совсем, тогда касания
             // идут в игру мышью напрямую.
             if !noGamepad {
                 let host = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first

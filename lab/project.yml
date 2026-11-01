@@ -61,6 +61,9 @@ targets:
       path: Sources/MacportLab/Info.plist
       properties:
         CFBundleDisplayName: BG3iOS
+        # Версия выпуска: Info.plist xcodegen пишет заново, правка в нём самом сотрётся.
+        CFBundleShortVersionString: "1.1"
+        CFBundleVersion: "2"
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
