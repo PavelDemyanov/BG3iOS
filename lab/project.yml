@@ -62,8 +62,11 @@ targets:
       properties:
         CFBundleDisplayName: BG3iOS
         # Версия выпуска: Info.plist xcodegen пишет заново, правка в нём самом сотрётся.
-        CFBundleShortVersionString: "1.1"
-        CFBundleVersion: "2"
+        CFBundleShortVersionString: "1.2"
+        CFBundleVersion: "3"
+        # Частота выше 60 Гц на iPhone с ProMotion (иначе приложению — не больше 60): ограничение кадров игры выше 60
+        # или не делящее 60 (например, 40) — шаг экрана 8,3 мс вместо 16,7.
+        CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false

@@ -34,6 +34,9 @@ contain or distribute any game files: you can play only if your Steam account ow
   that a sync replaces are kept for 30 days in Files › BG3iOS › Steam Cloud Backups.
 - **Graphics tuned for iPhone** are applied on first launch. You can change them in the game's Options; **Reset Graphics
   to Optimal** brings them back.
+- **A steady 30 FPS without stutters**: the game's own FPS limit is set to 30 (Options › Graphics). Above that, iOS
+  slows the processor down right when the game loads a new area, and frames stall for up to 150 ms; at 30 FPS every frame
+  stays on screen the same 33 ms. You can change the limit in the game, up to the display's 120 Hz.
 
 ## Requirements
 

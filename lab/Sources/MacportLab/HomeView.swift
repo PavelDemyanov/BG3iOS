@@ -68,8 +68,9 @@ struct HomeView: View {
                     Text("Graphics")
                 } footer: {
                     Text("Settings tuned for iPhone are applied on first launch: lower render resolution with FSR "
-                         + "upscaling, low model detail, view distance and shadows. You can change them in the game's "
-                         + "Options; this button brings them back.")
+                         + "upscaling, low model detail, view distance and shadows, and the game's FPS limit at 30: a "
+                         + "steady 30 FPS keeps the game smooth when you run into new areas. You can change them in the "
+                         + "game's Options; this button brings them back.")
                 }
                 Section { cloudRows } header: {
                     Text("Steam Cloud Saves")

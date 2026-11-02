@@ -23,6 +23,10 @@
 #import <mach/mach.h>
 #import <execinfo.h>
 #import <dlfcn.h>
+#import <pthread.h>
+#import <sys/resource.h>
+#import <GameController/GameController.h>
+#import <UIKit/UIKit.h>
 
 static void mp_log(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
 static void mp_log(NSString *format, ...)
@@ -738,15 +742,59 @@ static _Atomic uint64_t mp_render_count, mp_compute_count, mp_compile_ns;
 static uint64_t mp_now_ns(void) { return clock_gettime_nsec_np(CLOCK_UPTIME_RAW); }
 static uint64_t mp_started_ns;  // загрузка игры (конструктор MPMetal)
 
+// Поток, который берёт drawable, — цикл кадров игры: компиляция в нём держит кадр целиком, в других потоках —
+// только если кадр ждёт их работы. Самые долгие компиляции окна (с функциями и потоком) — в отчёт о рывках.
+static _Atomic uintptr_t mp_frame_thread;
+static _Atomic uint64_t mp_compile_frame_ns, mp_compile_frame_count;
+
+typedef struct {
+    double ms;
+    bool frame;
+    char thread[24];
+    char name[120];
+} MPSlowCompile;
+
+static os_unfair_lock mp_compile_lock = OS_UNFAIR_LOCK_INIT;
+static MPSlowCompile mp_slow[5];     // самые долгие за окно, по убыванию
+static unsigned mp_compile_hist[4];  // за окно: < 10 мс, 10–50, 50–200, ≥ 200 мс
+
+static void mp_note_compile(uint64_t ns, NSString *name)
+{
+    bool frame = (uintptr_t)pthread_self() == atomic_load(&mp_frame_thread);
+    if (frame) {
+        atomic_fetch_add(&mp_compile_frame_ns, ns);
+        atomic_fetch_add(&mp_compile_frame_count, 1);
+    }
+    double ms = ns / 1e6;
+    MPSlowCompile item = {.ms = ms, .frame = frame};
+    if (ms >= 50) {
+        pthread_getname_np(pthread_self(), item.thread, sizeof item.thread);
+        if (!item.thread[0]) snprintf(item.thread, sizeof item.thread, "%u", pthread_mach_thread_np(pthread_self()));
+        strlcpy(item.name, name.UTF8String ?: "-", sizeof item.name);
+    }
+    const int n = sizeof mp_slow / sizeof *mp_slow;
+    os_unfair_lock_lock(&mp_compile_lock);
+    mp_compile_hist[ms < 10 ? 0 : ms < 50 ? 1 : ms < 200 ? 2 : 3]++;
+    if (ms >= 50 && ms > mp_slow[n - 1].ms) {
+        int i = n - 1;
+        for (; i > 0 && mp_slow[i - 1].ms < ms; i--) mp_slow[i] = mp_slow[i - 1];
+        mp_slow[i] = item;
+    }
+    os_unfair_lock_unlock(&mp_compile_lock);
+}
+
 static id (*orig_device_render_pipeline)(id, SEL, MTLRenderPipelineDescriptor *, NSError **);
 static id device_render_pipeline(id self, SEL _cmd, MTLRenderPipelineDescriptor *descriptor, NSError **error)
 {
     uint64_t start = mp_now_ns();
     id state = orig_device_render_pipeline(self, _cmd, descriptor, error);
-    atomic_fetch_add(&mp_compile_ns, mp_now_ns() - start);
+    uint64_t ns = mp_now_ns() - start;
+    atomic_fetch_add(&mp_compile_ns, ns);
     atomic_fetch_add(&mp_render_count, 1);
-    if (state) mp_name_pipeline(state, [NSString stringWithFormat:@"%@|%@", descriptor.vertexFunction.name ?: @"-",
-                                                                   descriptor.fragmentFunction.name ?: @"-"]);
+    NSString *name = [NSString stringWithFormat:@"%@|%@", descriptor.vertexFunction.name ?: @"-",
+                                                         descriptor.fragmentFunction.name ?: @"-"];
+    mp_note_compile(ns, name);
+    if (state) mp_name_pipeline(state, name);
     return state;
 }
 
@@ -755,8 +803,10 @@ static id device_compute_pipeline(id self, SEL _cmd, id<MTLFunction> function, N
 {
     uint64_t start = mp_now_ns();
     id state = orig_device_compute_pipeline(self, _cmd, function, error);
-    atomic_fetch_add(&mp_compile_ns, mp_now_ns() - start);
+    uint64_t ns = mp_now_ns() - start;
+    atomic_fetch_add(&mp_compile_ns, ns);
     atomic_fetch_add(&mp_compute_count, 1);
+    mp_note_compile(ns, function.name ?: @"-");
     if (state) mp_name_pipeline(state, function.name ?: @"-");
     return state;
 }
@@ -894,6 +944,9 @@ static void mp_hook_formats(id<MTLTexture> texture)
     }
 }
 
+static void mp_pace_install(Class commandBufferClass);
+static void mp_pace_report(void);
+
 __attribute__((constructor)) static void mp_metal_init(void)
 {
     mp_started_ns = mp_now_ns();
@@ -918,7 +971,10 @@ __attribute__((constructor)) static void mp_metal_init(void)
         static dispatch_source_t report;
         report = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
         dispatch_source_set_timer(report, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC), 5 * NSEC_PER_SEC, NSEC_PER_SEC);
-        dispatch_source_set_event_handler(report, ^{ mp_pipeline_report(); });
+        dispatch_source_set_event_handler(report, ^{
+            mp_pace_report();
+            mp_pipeline_report();
+        });
         dispatch_resume(report);
 
         MTLHeapDescriptor *heapDescriptor = [MTLHeapDescriptor new];
@@ -965,6 +1021,7 @@ __attribute__((constructor)) static void mp_metal_init(void)
                 break;
             }
         }
+        mp_pace_install([commands class]);
         id<MTLBlitCommandEncoder> blit = [commands blitCommandEncoder];
         Class blitClass = [blit class];
         [blit endEncoding];
@@ -1013,17 +1070,251 @@ static void set_drawable_size(id self, SEL _cmd, CGSize size)
     orig_set_drawable_size(self, _cmd, size);
 }
 
+#pragma mark - Ритм кадров и рывки
+
+// Что видит игрок: сколько держался на экране каждый кадр (разница presentedTime соседних drawable). Экран
+// обновляется с шагом 16,7 мс (8,3 мс при 120 Гц), поэтому кадр держится ≈17, 33, 50 мс…; в отчёте — обычная
+// длительность (медиана), 95-й процентиль и самый долгий. Рывок — кадр, который держался 45 мс и дольше. У каждого
+// кадра запоминается, что было между ним и прошлым drawable: компиляция конвейеров в потоке кадра и в других, чтение
+// с диска процессом, ожидание свободного drawable (упор в видеокарту или экран), отклонённые стики (бег, камера).
+// Отчёт — раз в 5 с, перед строкой конвейеров.
+
+int proc_pid_rusage(int pid, int flavor, rusage_info_t *buffer);  // libproc: в SDK iOS не объявлена
+
+typedef struct {
+    double t, cpu_ms, wait_ms, compile_ms, compile_other_ms, read_mb;
+    bool move, turn;
+} MPFrame;
+
+static _Atomic bool mp_stick_move, mp_stick_turn;  // выборка 10 раз в секунду в главном потоке
+
+enum { MPPaceFrames = 2048 };  // за окно в 5 с — с запасом и при 120 кадрах/с
+
+static struct {
+    unsigned shown, dropped, pauses, moving, turning, hitches, hitches_moving;
+    unsigned with_compile, with_compile_other, with_read, with_wait, unexplained;
+    float ms[MPPaceFrames];  // сколько держались показанные кадры
+    struct {
+        double ms;
+        MPFrame f;
+    } worst[3];
+} mp_pace;
+static CFTimeInterval mp_pace_last;
+static os_unfair_lock mp_pace_lock = OS_UNFAIR_LOCK_INIT;
+
+static uint64_t mp_bytes_read(void)
+{
+    struct rusage_info_v6 info;
+    return proc_pid_rusage(getpid(), RUSAGE_INFO_V6, (rusage_info_t *)&info) == 0 ? info.ri_diskio_bytesread : 0;
+}
+
+static void mp_frame_presented(CFTimeInterval when, MPFrame f)
+{
+    const int n = sizeof mp_pace.worst / sizeof *mp_pace.worst;
+    os_unfair_lock_lock(&mp_pace_lock);
+    if (when <= 0) {
+        mp_pace.dropped++;
+    } else if (mp_pace_last > 0 && when > mp_pace_last) {
+        double ms = (when - mp_pace_last) * 1000;
+        if (ms >= 1000) {
+            mp_pace.pauses++;  // загрузка, ролик, приложение в фоне — не рывок
+        } else {
+            if (mp_pace.shown < MPPaceFrames) mp_pace.ms[mp_pace.shown] = ms;
+            mp_pace.shown++;
+            mp_pace.moving += f.move;
+            mp_pace.turning += f.turn;
+            if (ms >= 45) {
+                bool compile = f.compile_ms >= 10, other = f.compile_other_ms >= 20, read = f.read_mb >= 1,
+                     wait = f.wait_ms >= 20;
+                mp_pace.hitches++;
+                mp_pace.hitches_moving += f.move || f.turn;
+                mp_pace.with_compile += compile;
+                mp_pace.with_compile_other += other;
+                mp_pace.with_read += read;
+                mp_pace.with_wait += wait;
+                mp_pace.unexplained += !(compile || other || read || wait);
+                if (ms > mp_pace.worst[n - 1].ms) {
+                    int i = n - 1;
+                    for (; i > 0 && mp_pace.worst[i - 1].ms < ms; i--) mp_pace.worst[i] = mp_pace.worst[i - 1];
+                    mp_pace.worst[i].ms = ms;
+                    mp_pace.worst[i].f = f;
+                }
+            }
+        }
+    }
+    if (when > 0) mp_pace_last = when;
+    os_unfair_lock_unlock(&mp_pace_lock);
+}
+
+// Зовётся в потоке кадра сразу после nextDrawable: start — вызов, end — drawable получен.
+static void mp_frame_acquired(id<CAMetalDrawable> drawable, uint64_t start, uint64_t end)
+{
+    static uint64_t last_start, last_all, last_frame, last_read;
+    uint64_t all = atomic_load(&mp_compile_ns), frame = atomic_load(&mp_compile_frame_ns), read = mp_bytes_read();
+    MPFrame f = {
+        .t = (start - mp_started_ns) / 1e9,
+        .cpu_ms = last_start ? (start - last_start) / 1e6 : 0,
+        .wait_ms = (end - start) / 1e6,
+        .compile_ms = (frame - last_frame) / 1e6,
+        .compile_other_ms = ((all - last_all) - (frame - last_frame)) / 1e6,
+        .read_mb = last_start ? (read - last_read) / 1048576.0 : 0,
+        .move = atomic_load(&mp_stick_move),
+        .turn = atomic_load(&mp_stick_turn),
+    };
+    last_start = start;
+    last_all = all;
+    last_frame = frame;
+    last_read = read;
+    [drawable addPresentedHandler:^(id<MTLDrawable> shown) { mp_frame_presented(shown.presentedTime, f); }];
+}
+
 static id (*orig_next_drawable)(id, SEL);
 static id next_drawable(id self, SEL _cmd)
 {
     atomic_fetch_add(&mp_frames, 1);
-    return orig_next_drawable(self, _cmd);
+    uintptr_t thread = (uintptr_t)pthread_self();
+    if (atomic_exchange(&mp_frame_thread, thread) != thread) {
+        char name[32] = "";
+        pthread_getname_np(pthread_self(), name, sizeof name);
+        mp_log(@"кадры берёт поток «%s» (%u)", name, pthread_mach_thread_np(pthread_self()));
+    }
+    uint64_t start = mp_now_ns();
+    id drawable = orig_next_drawable(self, _cmd);
+    if (drawable) mp_frame_acquired(drawable, start, mp_now_ns());
+    return drawable;
+}
+
+// Как игра показывает кадры: просто presentDrawable или с минимальной длительностью (своё ограничение частоты).
+// MP_FPS_CAP=N — не больше N кадров в секунду ровным шагом: presentDrawable: становится
+// presentDrawable:afterMinimumDuration: (кадр держится на экране не меньше 1/N с минус 2 мс — запас на дрожание
+// времени, иначе при 60 Гц шаг то и дело выходил бы на три обновления экрана вместо двух).
+static _Atomic uint64_t mp_presents, mp_presents_after, mp_present_after_us;
+static CFTimeInterval mp_present_min;
+
+static void (*orig_present_after)(id, SEL, id, CFTimeInterval);
+
+static void (*orig_present)(id, SEL, id);
+static void command_buffer_present(id self, SEL _cmd, id drawable)
+{
+    atomic_fetch_add(&mp_presents, 1);
+    if (mp_present_min > 0 && orig_present_after)
+        orig_present_after(self, @selector(presentDrawable:afterMinimumDuration:), drawable, mp_present_min);
+    else
+        orig_present(self, _cmd, drawable);
+}
+
+static void command_buffer_present_after(id self, SEL _cmd, id drawable, CFTimeInterval duration)
+{
+    atomic_fetch_add(&mp_presents_after, 1);
+    atomic_store(&mp_present_after_us, (uint64_t)(duration * 1e6));
+    orig_present_after(self, _cmd, drawable, duration);
+}
+
+static void mp_pace_install(Class commandBufferClass)
+{
+    mp_replace_hook(commandBufferClass, @selector(presentDrawable:), (IMP)command_buffer_present, (IMP *)&orig_present);
+    mp_replace_hook(commandBufferClass, @selector(presentDrawable:afterMinimumDuration:),
+                    (IMP)command_buffer_present_after, (IMP *)&orig_present_after);
+    const char *cap = getenv("MP_FPS_CAP");
+    if (cap && atof(cap) > 0) {
+        mp_present_min = 1.0 / atof(cap) - 0.002;
+        mp_log(@"не больше %.0f кадров/с: каждый кадр на экране не меньше %.1f мс", atof(cap), mp_present_min * 1000);
+    }
+}
+
+static void (*orig_set_max_drawables)(id, SEL, NSUInteger);
+static void set_max_drawables(id self, SEL _cmd, NSUInteger count)
+{
+    if ([(CAMetalLayer *)self maximumDrawableCount] != count) mp_log(@"drawable у слоя: %lu", (unsigned long)count);
+    orig_set_max_drawables(self, _cmd, count);
+}
+
+static void mp_sample_sticks(void)
+{
+    bool move = false, turn = false;
+    for (GCController *controller in GCController.controllers) {
+        GCExtendedGamepad *pad = controller.extendedGamepad;
+        if (!pad) continue;
+        move |= hypotf(pad.leftThumbstick.xAxis.value, pad.leftThumbstick.yAxis.value) > 0.5f;
+        turn |= hypotf(pad.rightThumbstick.xAxis.value, pad.rightThumbstick.yAxis.value) > 0.5f;
+    }
+    atomic_store(&mp_stick_move, move);
+    atomic_store(&mp_stick_turn, turn);
+}
+
+static void mp_pace_report(void)
+{
+    os_unfair_lock_lock(&mp_pace_lock);
+    __typeof__(mp_pace) w = mp_pace;
+    memset(&mp_pace, 0, sizeof mp_pace);
+    os_unfair_lock_unlock(&mp_pace_lock);
+    MPSlowCompile slow[sizeof mp_slow / sizeof *mp_slow];
+    unsigned hist[4];
+    os_unfair_lock_lock(&mp_compile_lock);
+    memcpy(slow, mp_slow, sizeof slow);
+    memset(mp_slow, 0, sizeof mp_slow);
+    memcpy(hist, mp_compile_hist, sizeof hist);
+    memset(mp_compile_hist, 0, sizeof mp_compile_hist);
+    os_unfair_lock_unlock(&mp_compile_lock);
+    static uint64_t last_after, last_frame_ns, last_frame_count;
+    uint64_t after = atomic_load(&mp_presents_after), frame_ns = atomic_load(&mp_compile_frame_ns),
+             frame_count = atomic_load(&mp_compile_frame_count);
+    uint64_t new_after = after - last_after, new_frame_ns = frame_ns - last_frame_ns,
+             new_frame_count = frame_count - last_frame_count;
+    last_after = after;
+    last_frame_ns = frame_ns;
+    last_frame_count = frame_count;
+    if (!w.shown) return;
+    double n = w.shown;
+    unsigned kept = MIN(w.shown, (unsigned)MPPaceFrames);
+    qsort_b(w.ms, kept, sizeof *w.ms, ^int(const void *a, const void *b) {
+        float x = *(const float *)a, y = *(const float *)b;
+        return x < y ? -1 : x > y;
+    });
+    mp_log(@"t+%.0f с кадры: %.1f/с, обычно %.0f мс (95 %% не дольше %.0f мс), самый долгий %.0f мс; бег %.0f%%, "
+           @"камера %.0f%%%@%@",
+           (mp_now_ns() - mp_started_ns) / 1e9, n / 5, w.ms[kept / 2], w.ms[kept * 95 / 100], w.ms[kept - 1],
+           w.moving * 100 / n, w.turning * 100 / n,
+           new_after ? [NSString stringWithFormat:@"; показ с паузой %llu раз (%.1f мс)", new_after,
+                                                  atomic_load(&mp_present_after_us) / 1e3]
+                     : @"",
+           w.dropped || w.pauses ? [NSString stringWithFormat:@"; не показано %u, пауз %u", w.dropped, w.pauses] : @"");
+    if (w.hitches) {
+        mp_log(@"  рывков (≥45 мс) %u, на бегу или с камерой %u; в них: компиляция в потоке кадра %u, в других "
+               @"потоках %u, чтение ≥1 МБ %u, ожидание drawable %u, ничего из этого %u",
+               w.hitches, w.hitches_moving, w.with_compile, w.with_compile_other, w.with_read, w.with_wait,
+               w.unexplained);
+        for (int i = 0; i < 3 && w.worst[i].ms > 0; i++) {
+            MPFrame f = w.worst[i].f;
+            mp_log(@"    %.0f мс (t+%.1f%@): кадр на процессоре %.0f мс, ожидание drawable %.0f, компиляция в потоке кадра "
+                   @"%.0f, в других %.0f, прочитано %.1f МБ",
+                   w.worst[i].ms, f.t, f.move ? @", бег" : f.turn ? @", камера" : @"", f.cpu_ms, f.wait_ms, f.compile_ms,
+                   f.compile_other_ms, f.read_mb);
+        }
+    }
+    unsigned compiled = hist[0] + hist[1] + hist[2] + hist[3];
+    if (compiled) {
+        mp_log(@"  компиляция: %u конвейеров (<10 мс %u, 10–50 %u, 50–200 %u, ≥200 %u), в потоке кадра %llu — %.2f с",
+               compiled, hist[0], hist[1], hist[2], hist[3], new_frame_count, new_frame_ns / 1e9);
+        for (size_t i = 0; i < sizeof slow / sizeof *slow && slow[i].ms > 0; i++)
+            mp_log(@"    %.0f мс, поток «%s»%s: %s", slow[i].ms, slow[i].thread, slow[i].frame ? " (кадра)" : "",
+                   slow[i].name);
+    }
 }
 
 __attribute__((constructor)) static void mp_frames_init(void)
 {
     HOOK(CAMetalLayer.class, nextDrawable, next_drawable);
     HOOK(CAMetalLayer.class, setDrawableSize:, set_drawable_size);
+    HOOK(CAMetalLayer.class, setMaximumDrawableCount:, set_max_drawables);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        mp_log(@"экран: до %ld кадров/с", (long)UIScreen.mainScreen.maximumFramesPerSecond);
+    });
+    static dispatch_source_t sticks;
+    sticks = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(sticks, DISPATCH_TIME_NOW, NSEC_PER_SEC / 10, NSEC_PER_SEC / 50);
+    dispatch_source_set_event_handler(sticks, ^{ mp_sample_sticks(); });
+    dispatch_resume(sticks);
 }
 
 @implementation CAMetalLayer (MPMetalMacOnly)

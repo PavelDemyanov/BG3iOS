@@ -86,7 +86,9 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 guard SteamCenter.shared.canPlay else { return }
                 Task { @MainActor in
                     await SteamCenter.shared.beforePlay()
+                    guard await SteamCenter.shared.prepareIfStale() else { return }
                     BG3Graphics.applyIfMissing()
+                    BG3Graphics.enableFrameCapOnce()
                     BG3Language.apply(to: app)
                     self?.start(.game(app, fps: fps))
                 }

@@ -7,6 +7,7 @@
 // журнал — Documents/steam.log.
 
 import ContentKit
+import CryptoKit
 import Foundation
 import MachOSign
 import MacportPrep
@@ -121,6 +122,20 @@ final class SteamCenter: ObservableObject {
     var receipt: InstallReceipt? { installer.loadReceipt(Self.bg3) }
     var gameFolder: URL? { receipt.map { layout.gamesRoot.appendingPathComponent($0.installDir, isDirectory: true) } }
     var preparedMarker: URL? { gameFolder?.appendingPathComponent(".macport-prepared") }
+    // Содержимое метки: сборка игры из Steam и отпечаток заменителей в бандле. Подготовка кладёт заменители в игру
+    // один раз, а новая версия BG3iOS могла привезти другие (например, MPMetal) — по метке видно, что пора заново.
+    var preparedStamp: String { (receipt?.buildID.map(String.init) ?? "") + " shims " + Self.shimsFingerprint }
+
+    static let shimsFingerprint: String = {
+        guard let dir = Bundle.main.url(forResource: "shims", withExtension: nil),
+              let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path).sorted() else { return "-" }
+        var hash = SHA256()
+        for name in names {
+            hash.update(data: Data(name.utf8))
+            if let data = try? Data(contentsOf: dir.appendingPathComponent(name)) { hash.update(data: data) }
+        }
+        return hash.finalize().prefix(8).map { String(format: "%02x", $0) }.joined()
+    }()
     var legacyApp: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MacApps/\(Self.legacyName).app")
@@ -454,6 +469,16 @@ final class SteamCenter: ObservableObject {
         run("Preparing for iPhone") { center in try await center.prepareNow() }
     }
 
+    // Перед Play: игру готовила другая версия приложения — подготовить заново (несколько секунд: AppPreparer
+    // повторно безопасен, уже переделанные файлы только переподписываются). false — не вышло, причина — в detail.
+    func prepareIfStale() async -> Bool {
+        guard let marker = preparedMarker else { return false }
+        if (try? String(contentsOf: marker, encoding: .utf8)) == preparedStamp { return true }
+        run("Updating the game for this version of BG3iOS") { center in try await center.prepareNow() }
+        await work?.value
+        return (try? String(contentsOf: marker, encoding: .utf8)) == preparedStamp
+    }
+
     // Переделка и подпись Mac-бинарников на телефоне сертификатом из AltStore/SideStore.
     private func prepareNow() async throws {
         guard let app = appURL, let marker = preparedMarker else { throw SteamError.notFound("the game is not installed") }
@@ -473,7 +498,7 @@ final class SteamCenter: ObservableObject {
         try await Task.detached(priority: .userInitiated) {
             try AppPreparer(app: app, shims: shims, identity: identity, log: { self.say($0) }).prepare()
         }.value
-        try Data((receipt?.buildID.map(String.init) ?? "").utf8).write(to: marker)
+        try Data(preparedStamp.utf8).write(to: marker)
         say(String(format: "Prepared in %.1f s. Ready to play.", Date().timeIntervalSince(started)))
     }
 

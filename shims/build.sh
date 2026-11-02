@@ -19,7 +19,7 @@ lib MPSecurity MPSecurity.c -framework CoreFoundation -Wl,-reexport_framework,Se
 lib MPCoreServices MPCoreServices.c -framework CoreFoundation -Wl,-reexport_framework,CoreServices -Wl,-reexport_library,/usr/lib/libSystem.B.dylib
 lib MPAudioToolbox MPAudioToolbox.c -Wl,-reexport_framework,AudioToolbox
 lib MPCoreAudio MPCoreAudio.c -framework CoreFoundation -Wl,-reexport_framework,CoreAudio
-lib MPMetal MPMetal.m -framework Foundation -framework QuartzCore -Wl,-reexport_framework,Metal
+lib MPMetal MPMetal.m -framework Foundation -framework QuartzCore -framework UIKit -framework GameController -Wl,-reexport_framework,Metal
 # Замена libsteam_api.dylib игры: то же имя установки, что у оригинала.
 xcrun -sdk iphoneos clang++ -arch arm64 -miphoneos-version-min=17.0 -dynamiclib -O2 -Wall -std=c++17 \
     -install_name @rpath/libsteam_api.dylib MPSteam.cpp -o "$OUT/libsteam_api.dylib"
