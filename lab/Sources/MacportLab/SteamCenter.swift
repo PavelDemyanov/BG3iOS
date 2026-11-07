@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Steam в приложении: вход (логин, пароль и Steam Guard), проверка лицензии Mac-версии BG3, установка macOS-депо
-// (клиент Steam из Playport, vendor/playport), подготовка к запуску на телефоне (MacportPrep) и запуск.
+// (клиент Steam из Playport, vendor/playport), подготовка к запуску на телефоне (MacportPrep), запуск и удаление.
 // Уже лежащую копию игры (Documents/MacApps, перенесённую с Mac) можно принять: манифесты берутся из Steam, файлы
 // сверяются, докачиваются только отличающиеся (TitleInstaller.adopt + repair) — без повторных 156 ГБ.
 // Установка — Documents/Games/<папка Steam>/<имя>.app; состояние Steam — Library/Application Support/Macport;
@@ -71,6 +71,8 @@ final class SteamCenter: ObservableObject {
                                gamesRoot: documents.appendingPathComponent("Games", isDirectory: true),
                                stateRoot: library.appendingPathComponent("Application Support/Macport", isDirectory: true))
         try? fm.createDirectory(at: layout.stateRoot.appendingPathComponent("steam"), withIntermediateDirectories: true)
+        // Игра (156 ГБ) и начатая загрузка — не в резервную копию iPhone (iCloud и Finder): их отдаёт Steam.
+        for folder in [layout.gamesRoot, layout.stagingRoot] { Self.excludeFromBackup(folder) }
         let file = SteamLogFile(url: documents.appendingPathComponent("steam.log"))
         log = Logger(verbose: false) { file.write($0) }
         let session = SteamSession(store: KeychainSecretStore(service: "com.redpax.macport.steam"), log: log)
@@ -112,6 +114,25 @@ final class SteamCenter: ObservableObject {
         Task { @MainActor in
             await service.restoreIfPossible()
             self.refreshGame()
+        }
+        let staging = layout.stagingRoot
+        Task.detached(priority: .utility) { Self.sweepRemoved(in: staging) }
+    }
+
+    nonisolated static func excludeFromBackup(_ folder: URL) {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var url = folder
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? url.setResourceValues(values)
+    }
+
+    // Удаление игры сначала переименовывает её папку в staging/removed-…, потом стирает. Если приложение закрыли
+    // посреди стирания, остаток (до 156 ГБ) подбирает только следующая установка — убираем его сами при запуске.
+    nonisolated static func sweepRemoved(in staging: URL) {
+        let fm = FileManager.default
+        for name in (try? fm.contentsOfDirectory(atPath: staging.path)) ?? [] where name.hasPrefix("removed-") {
+            try? fm.removeItem(at: staging.appendingPathComponent(name))
         }
     }
 
@@ -522,6 +543,36 @@ final class SteamCenter: ObservableObject {
             }
         } catch {
             say("cloud: error \(error)")
+        }
+    }
+
+    static let deleting = "Deleting the game"
+
+    // Удалить игру с телефона: папку установки, квитанцию, манифесты и начатую загрузку. Сейвы (Documents/Larian
+    // Studios), вход в Steam, сертификат и настройки остаются. Для этого не нужны ни вход, ни лицензия. Папка
+    // сначала одним переименованием уходит из Games — игры сразу нет, — потом стирается (TitleInstaller.uninstall).
+    func deleteGame() {
+        guard let r = receipt else { return }
+        wantsDownload = false
+        run(Self.deleting) { center in
+            let installer = center.installer, appID = Self.bg3
+            try await Task.detached(priority: .userInitiated) {
+                try installer.uninstall(installDir: r.installDir, appID: appID)
+            }.value
+            center.cloud = .idle
+            center.say(String(format: "Baldur's Gate 3 was deleted from this iPhone: %.0f GB freed.", Double(r.bytes) / 1e9))
+        }
+    }
+
+    static let deletingDownload = "Deleting the download"
+
+    // Выбросить начатую загрузку (в ней может быть до 156 ГБ): Download начнёт её заново.
+    func discardDownload() {
+        wantsDownload = false
+        run(Self.deletingDownload) { center in
+            let installer = center.installer, appID = Self.bg3
+            await Task.detached(priority: .userInitiated) { installer.discardStage(appID: appID) }.value
+            center.say("The download was deleted.")
         }
     }
 

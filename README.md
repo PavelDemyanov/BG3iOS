@@ -37,6 +37,9 @@ contain or distribute any game files: you can play only if your Steam account ow
 - **A steady 30 FPS without stutters**: the game's own FPS limit is set to 30 (Options › Graphics). Above that, iOS
   slows the processor down right when the game loads a new area, and frames stall for up to 150 ms; at 30 FPS every frame
   stays on screen the same 33 ms. You can change the limit in the game, up to the display's 120 Hz.
+- **Delete the game when you need the space**: **Storage › Delete Game** removes the 156 GB from your iPhone. Your saves,
+  Steam sign-in and settings stay; to play again, download the game from Steam. The game isn't included in iPhone backups
+  (iCloud or computer): it comes from Steam.
 
 ## Requirements
 
@@ -165,6 +168,8 @@ usual way: AltServer → **Install AltStore**.
 - **Privacy:** your Steam password goes only to Steam, encrypted, and is never stored. BG3iOS keeps a Steam session token
   in the iPhone's keychain. Your Apple ID goes only to Apple, through AltServer and AltStore. BG3iOS has no servers of its
   own and collects nothing.
+- **Deleting the BG3iOS app** deletes the downloaded game and the saves on the iPhone with it (the ones in Steam Cloud
+  stay). To free up space, use **Storage › Delete Game** instead.
 - **Not supported yet:** updating the game after a new Steam patch. Multiplayer hasn't been tested.
 - BG3iOS can also get a certificate from SideStore, but we haven't tested that.
 

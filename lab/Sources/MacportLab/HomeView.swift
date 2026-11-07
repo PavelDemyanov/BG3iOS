@@ -3,8 +3,8 @@
 // затем Baldur's Gate 3 — вход в Steam, проверка лицензии, скачивание из Steam, подготовка, Play / Play with FPS
 // Counter, под ними — чем играть (Controls: экранный геймпад или контроллер). Играть можно только с лицензией: вход
 // в Steam, игра в библиотеке аккаунта, установка из Steam через приложение (SteamCenter.canPlay). Ниже — язык игры
-// (BG3Language), сброс графики на оптимальную (BG3Graphics), сейвы в Steam Cloud, сертификат подписи, аккаунт Steam
-// и (в сборке разработчика) прежний список.
+// (BG3Language), сброс графики на оптимальную (BG3Graphics), сейвы в Steam Cloud, место (удаление игры — без входа
+// и лицензии), сертификат подписи, аккаунт Steam и (в сборке разработчика) прежний список.
 
 import GameController
 import SteamClientKit
@@ -20,6 +20,8 @@ struct HomeView: View {
     @State private var showSignIn = false
     @State private var confirmSignOut = false
     @State private var confirmGraphicsReset = false
+    @State private var confirmDelete = false
+    @State private var confirmDiscard = false
     @State private var graphicsMessage: String?
     @State private var gameLanguage = BG3Language.current
     @State private var controls = Controls.mode
@@ -77,6 +79,24 @@ struct HomeView: View {
                 } footer: {
                     Text("Saves sync with Steam Cloud when BG3iOS opens and before you play, so you can continue on "
                          + "your PC or Mac. Copies a sync replaces are kept for 30 days in Files › BG3iOS › Steam Cloud Backups.")
+                }
+            }
+            // Удалить игру можно и без входа в Steam и без лицензии: место на телефоне — не повод входить.
+            if let receipt = steam.receipt, steam.busy == nil {
+                Section {
+                    LabeledContent("Baldur's Gate 3", value: String(format: "%.0f GB", Double(receipt.bytes) / 1e9))
+                    Button("Delete Game", role: .destructive) { confirmDelete = true }
+                        .confirmationDialog("Delete Baldur's Gate 3 from this iPhone?", isPresented: $confirmDelete,
+                                            titleVisibility: .visible) {
+                            Button("Delete Game", role: .destructive) { steam.deleteGame() }
+                        } message: {
+                            Text(String(format: "This frees about %.0f GB. Your saves, Steam sign-in and settings stay. "
+                                        + "To play again, download the game from Steam.", Double(receipt.bytes) / 1e9))
+                        }
+                } header: {
+                    Text("Storage")
+                } footer: {
+                    Text("Saves stay on this iPhone and in Steam Cloud.")
                 }
             }
             Section {
@@ -182,7 +202,10 @@ struct HomeView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
-            Button("Stop", role: .destructive) { steam.cancelWork() }
+            // Удаление не останавливается: папка уже ушла из Games, остаток стирается и при следующем запуске.
+            if busy != SteamCenter.deleting, busy != SteamCenter.deletingDownload {
+                Button("Stop", role: .destructive) { steam.cancelWork() }
+            }
         } else {
             switch steam.account {
             case .unknown, .restoring:
@@ -218,6 +241,13 @@ struct HomeView: View {
                 if steam.downloadPaused {
                     primaryButton("Resume Download", systemImage: "arrow.down.circle") { steam.install() }
                     Text("The download continues from where it stopped.").font(.footnote).foregroundStyle(.secondary)
+                    Button("Delete Download", role: .destructive) { confirmDiscard = true }
+                        .confirmationDialog("Delete the downloaded part of the game?", isPresented: $confirmDiscard,
+                                            titleVisibility: .visible) {
+                            Button("Delete Download", role: .destructive) { steam.discardDownload() }
+                        } message: {
+                            Text("This frees its space on this iPhone. The next download starts from the beginning.")
+                        }
                 } else {
                     primaryButton("Download from Steam (156 GB)", systemImage: "arrow.down.circle") { steam.install() }
                     Text("Needs about 165 GB of free space: the game plus a 5% reserve.")
