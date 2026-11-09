@@ -24,7 +24,12 @@ contain or distribute any game files: you can play only if your Steam account ow
   - The buttons sit in the black bars on both sides of the picture.
   - The sticks appear wherever you put your finger (left half: left stick, right half: right stick) and disappear when
     you lift it. A quick double tap clicks the stick (L3/R3).
-  - A short tap in the top third of the picture acts as a mouse click.
+  - A short tap in the top third of the picture is a mouse click, and it switches to mouse mode: the whole picture then
+    works like a mouse (tap to click, drag to drag) and no sticks appear. Any button in the side bars switches back to
+    the gamepad.
+  - The keyboard button (right bar, under RB) opens the iPhone keyboard for the game's text fields, for example to sign
+    in to your Larian account. It also switches to mouse mode, so you can tap fields and buttons anywhere. Above the
+    keyboard are Tab (next field), Paste and a button that hides the keyboard.
 - **Or play with a game controller**: choose **Controls → Game Controller** under the Play buttons and pair a DualSense,
   DualShock 4 or Xbox controller in Settings › Bluetooth (DualSense: hold PS and Create until the light bar blinks).
   The on-screen buttons are hidden while it's connected and come back if it disconnects.

@@ -240,6 +240,7 @@ MP_FORWARDING
 @property(nonatomic, readonly) UIWindow *mp_window;
 - (void)sendEvent:(NSEvent *)event;
 - (CGFloat)backingScaleFactor;
+- (NSResponder *)mp_keyTarget;
 @end
 
 @implementation MPHostView
@@ -268,18 +269,21 @@ static const int64_t MPPressDelay = 40 * NSEC_PER_MSEC;
     mp_mouse_location = p;
     [window sendEvent:event];
 }
-// Точка в координатах окна AppKit: от вида содержимого (он сдвинут на поля безопасной области).
-- (CGPoint)mp_point:(UITouch *)touch
+// Точка окна UIKit — в координатах окна AppKit: от вида содержимого (он сдвинут на поля безопасной области).
+- (CGPoint)mp_appkitPoint:(CGPoint)point
 {
     UIView *content = self.owner.window.contentView.mp_host ?: self;
-    CGPoint p = [touch locationInView:content];
+    CGPoint p = [content convertPoint:point fromView:nil];
     return CGPointMake(p.x, content.bounds.size.height - p.y);
 }
-- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+- (CGPoint)mp_point:(UITouch *)touch
 {
-    UITouch *touch = touches.anyObject;
-    CGPoint p = [self mp_point:touch];
-    NSInteger clicks = touch.tapCount;
+    return [self mp_appkitPoint:[touch locationInView:nil]];
+}
+// Палец — мышь с левой кнопкой: касание, ведение, отпускание (точки — в координатах окна AppKit). Свои касания
+// этого вида и пальцы, которые экранный геймпад хоста отдаёт в режиме мыши (mp_appkit_mouse).
+- (void)mp_fingerDown:(CGPoint)p clicks:(NSInteger)clicks
+{
     _mp_last = p;
     _mp_pressed = NO;
     _mp_release = NO;
@@ -299,21 +303,34 @@ static const int64_t MPPressDelay = 40 * NSEC_PER_MSEC;
         }
     });
 }
-- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+- (void)mp_fingerMoved:(CGPoint)p
 {
-    _mp_last = [self mp_point:touches.anyObject];
+    _mp_last = p;
     [self mp_send:_mp_pressed ? NSEventTypeLeftMouseDragged : NSEventTypeMouseMoved at:_mp_last clicks:0];
 }
-- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+- (void)mp_fingerUp:(CGPoint)p clicks:(NSInteger)clicks
 {
-    UITouch *touch = touches.anyObject;
-    _mp_last = [self mp_point:touch];
+    _mp_last = p;
     if (_mp_pressed) {
-        [self mp_send:NSEventTypeLeftMouseUp at:_mp_last clicks:touch.tapCount];
+        [self mp_send:NSEventTypeLeftMouseUp at:_mp_last clicks:clicks];
         _mp_pressed = NO;
     } else {
         _mp_release = YES;
     }
+}
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+{
+    UITouch *touch = touches.anyObject;
+    [self mp_fingerDown:[self mp_point:touch] clicks:touch.tapCount];
+}
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+{
+    [self mp_fingerMoved:[self mp_point:touches.anyObject]];
+}
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+{
+    UITouch *touch = touches.anyObject;
+    [self mp_fingerUp:[self mp_point:touch] clicks:touch.tapCount];
 }
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
 {
@@ -322,9 +339,7 @@ static const int64_t MPPressDelay = 40 * NSEC_PER_MSEC;
 // Щелчок без касания этого вида: точка — в координатах окна UIKit. Как у касания: движение, нажатие, отпускание.
 - (void)mp_tap:(CGPoint)point clicks:(NSInteger)clicks
 {
-    UIView *content = self.owner.window.contentView.mp_host ?: self;
-    CGPoint p = [content convertPoint:point fromView:nil];
-    p.y = content.bounds.size.height - p.y;
+    CGPoint p = [self mp_appkitPoint:point];
     _mp_last = p;
     _mp_pressed = NO;
     _mp_release = NO;
@@ -560,7 +575,6 @@ static __weak NSWindow *mp_key_window;  // последнее окно, выве
 // Мышь — виду, которого коснулись (у BG3 это LSMTLView внутри вида содержимого), клавиши — первому ответчику.
 - (void)sendEvent:(NSEvent *)event
 {
-    NSResponder *target = self.firstResponder ?: self.contentView;
     NSView *view = event.mp_view ?: self.contentView;
     switch (event.type) {
     case NSEventTypeLeftMouseDown: [view mouseDown:event]; break;
@@ -568,10 +582,29 @@ static __weak NSWindow *mp_key_window;  // последнее окно, выве
     case NSEventTypeLeftMouseDragged: [view mouseDragged:event]; break;
     case NSEventTypeMouseMoved: [view mouseMoved:event]; break;
     case NSEventTypeScrollWheel: [view scrollWheel:event]; break;
-    case NSEventTypeKeyDown: [target keyDown:event]; break;
-    case NSEventTypeKeyUp: [target keyUp:event]; break;
+    case NSEventTypeKeyDown: [[self mp_keyTarget] keyDown:event]; break;
+    case NSEventTypeKeyUp: [[self mp_keyTarget] keyUp:event]; break;
     default: break;
     }
+}
+
+// Первый ответчик для клавиш. Игры его часто не назначают (BG3 не зовёт makeFirstResponder:) — у ключевого окна
+// AppKit сам делает им первый вид, который соглашается (acceptsFirstResponder): у BG3 это LSMTLView.
+- (NSResponder *)mp_keyTarget
+{
+    if (self.firstResponder) return self.firstResponder;
+    NSMutableArray<NSView *> *queue = [NSMutableArray array];
+    if (self.contentView) [queue addObject:self.contentView];
+    while (queue.count) {
+        NSView *view = queue.firstObject;
+        [queue removeObjectAtIndex:0];
+        if ([view acceptsFirstResponder]) {
+            self.firstResponder = view;
+            return view;
+        }
+        [queue addObjectsFromArray:view.mp_subviews];
+    }
+    return self.contentView;
 }
 @end
 
@@ -585,6 +618,59 @@ __attribute__((visibility("default"))) void mp_appkit_tap(double x, double y, lo
     UIView *hit = [window hitTest:point withEvent:nil];
     while (hit && ![hit isKindOfClass:MPHostView.class]) hit = hit.superview;
     [(MPHostView *)hit mp_tap:point clicks:clicks];
+}
+
+// Палец экранного геймпада хоста в режиме мыши: phase 0 — коснулся, 1 — ведёт, 2 — убран (или касание отменено);
+// точка — в координатах сцены. Как касание самого вида игры: движение в точку, через пару кадров нажатие левой
+// кнопки, перетаскивание, отпускание. Вид — тот, что был под пальцем в начале.
+__attribute__((visibility("default"))) void mp_appkit_mouse(int phase, double x, double y, long clicks)
+{
+    static __weak MPHostView *finger;
+    UIWindow *window = mp_key_window.mp_window;
+    if (!window) return;
+    CGPoint point = [window convertPoint:CGPointMake(x, y) fromCoordinateSpace:window.windowScene.coordinateSpace];
+    if (phase == 0) {
+        UIView *hit = [window hitTest:point withEvent:nil];
+        while (hit && ![hit isKindOfClass:MPHostView.class]) hit = hit.superview;
+        finger = (MPHostView *)hit;
+    }
+    MPHostView *view = finger;
+    if (!view) return;
+    CGPoint p = [view mp_appkitPoint:point];
+    if (phase == 0) {
+        [view mp_fingerDown:p clicks:clicks];
+    } else if (phase == 1) {
+        [view mp_fingerMoved:p];
+    } else {
+        [view mp_fingerUp:p clicks:clicks];
+        finger = nil;
+    }
+}
+
+// Клавиша с экранной клавиатуры хоста: нажатие и сразу отпускание, как от клавиатуры Mac. keyCode — виртуальный код
+// Mac (kVK_…), characters — набранное (UTF-8). Отпускание сразу за нажатием не теряется: игра ставит оба в очередь
+// кадра (у BG3 — ls::InputManager::InjectInput), а набранное — в свою очередь текста из keyDown:. Сами символы в
+// журнал не пишутся: это могут быть почта и пароль.
+__attribute__((visibility("default"))) void mp_appkit_key(unsigned short keyCode, const char *characters)
+{
+    NSWindow *window = mp_key_window;
+    if (!window) return;
+    NSString *text = (characters ? [NSString stringWithUTF8String:characters] : nil) ?: @"";
+    static BOOL logged;
+    if (!logged) {
+        logged = YES;
+        mp_log(@"клавиатура хоста → %@", NSStringFromClass([[window mp_keyTarget] class]));
+    }
+    for (int i = 0; i < 2; i++) {
+        NSEvent *event = [NSEvent new];
+        event.type = i == 0 ? NSEventTypeKeyDown : NSEventTypeKeyUp;
+        event.keyCode = keyCode;
+        event.characters = text;
+        event.charactersIgnoringModifiers = text;
+        event.timestamp = NSProcessInfo.processInfo.systemUptime;
+        event.window = window;
+        [window sendEvent:event];
+    }
 }
 
 #pragma mark - NSApplication

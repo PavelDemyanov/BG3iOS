@@ -2,11 +2,15 @@
 // вместе с крестовиной и рисует всё поверх картинки. Здесь все кнопки — в чёрных полосах по бокам (безопасная
 // область, остров камеры — слева):
 // - слева: LT (в углу, по скруглению экрана), LB, «Вид» и «Меню» над островом, X и Y под ним;
-// - справа: RT, RB, крестовина четырьмя кнопками в столбик (↑ ← → ↓), A и B.
+// - справа: RT, RB, клавиатура (KeyboardInput — поля ввода игры), крестовина четырьмя кнопками в столбик (↑ ← → ↓),
+//   A и B.
 // Стики появляются там, где палец повели по картинке (левая половина — левый стик, правая — правый), и исчезают,
 // когда палец убран. Быстрое двойное касание — нажатие стика (L3 слева, R3 справа; повести вторым касанием —
 // стик с нажатием). Щелчок мыши (mp_appkit_tap в MPAppKit) — только короткое касание в верхней трети картинки,
 // поодаль от кнопок: иначе BG3 от случайного касания переключает интерфейс на мышь.
+// Такой щелчок (и клавиатура) включает режим мыши, как у самой BG3 после мыши: вся картинка — мышь (mp_appkit_mouse:
+// касание — нажатие левой кнопки, повели — перетаскивание), стиков нет. Обратно в геймпад — любая кнопка в полосах,
+// кроме клавиатуры.
 //
 // Для игры это обычный контроллер GameController: GCController.withExtendedGamepad(), значения — setValue у
 // элементов. Такой контроллер не попадает в GCController.controllers() и сам о себе не объявляет — список
@@ -220,6 +224,22 @@ enum TouchGamepad {
         guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "mp_appkit_tap") else { return }
         unsafeBitCast(symbol, to: Tap.self)(point.x, point.y, clicks)
     }
+
+    // Палец как мышь в режиме мыши (mp_appkit_mouse в MPAppKit): точка — в координатах сцены.
+    enum MousePhase: Int32 { case down = 0, moved = 1, up = 2 }
+
+    static func mouse(_ phase: MousePhase, at point: CGPoint, clicks: Int) {
+        typealias Mouse = @convention(c) (Int32, Double, Double, Int) -> Void
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "mp_appkit_mouse") else { return }
+        unsafeBitCast(symbol, to: Mouse.self)(phase.rawValue, point.x, point.y, clicks)
+    }
+
+    // Клавиша Mac для игры (mp_appkit_key в MPAppKit): нажатие и отпускание; code — kVK_…, characters — набранное.
+    static func key(_ code: UInt16, _ characters: String) {
+        typealias Key = @convention(c) (UInt16, UnsafePointer<CChar>?) -> Void
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "mp_appkit_key") else { return }
+        characters.withCString { unsafeBitCast(symbol, to: Key.self)(code, $0) }
+    }
 }
 
 extension GCController {
@@ -249,7 +269,8 @@ private final class GamepadController: UIViewController {
 }
 
 // Весь экран: кнопки в боковых полосах, стики под пальцами. Касания мимо кнопок приходят сюда: по картинке —
-// стик, нажатие стика или щелчок, по полосам — никуда. Без кнопок (играют контроллером) — только щелчки.
+// стик, нажатие стика или щелчок (в режиме мыши — мышь), по полосам — никуда. Без кнопок (играют контроллером) —
+// только щелчки в верхней трети.
 private final class GamepadView: UIView {
     @MainActor private final class Stick {
         let left: Bool
@@ -269,21 +290,28 @@ private final class GamepadView: UIView {
     private static let mouseInset: CGFloat = 44  // зона щелчков — дальше от боковых полос
 
     private let buttons: [(PadButton, TouchGamepad.Button)]
+    private let keyboardButton = PadButton(symbol: "keyboard")  // не кнопка контроллера: показать или спрятать клавиатуру
+    private let keyboard = KeyboardInput()
     private var pending: [ObjectIdentifier: CGPoint] = [:]
     private var sticks: [ObjectIdentifier: Stick] = [:]
     private var lastTap: (time: TimeInterval, point: CGPoint)?  // первое касание возможного двойного
     private var gameRect = CGRect.zero
     private var mouseRect = CGRect.zero  // верхняя треть картинки без краёв у полос
+    // Режим мыши (только с кнопками на экране): вся картинка — мышь, стиков нет. Мышь — один палец, первый.
+    private var mouseMode = false
+    private var mouseTouch: ObjectIdentifier?
 
-    // Кнопки и стики. Прячутся — всё нажатое отпускается.
+    // Кнопки и стики. Прячутся — всё нажатое отпускается, клавиатура уходит.
     var showsButtons = false {
         didSet {
             guard showsButtons != oldValue else { return }
-            for (view, _) in buttons {
+            for view in buttons.map(\.0) + [keyboardButton] {
                 view.isHidden = !showsButtons
                 view.release()
             }
             guard !showsButtons else { return }
+            mouseMode = false
+            keyboard.hide()
             for stick in sticks.values {
                 stick.base.removeFromSuperview()
                 TouchGamepad.setStick(left: stick.left, x: 0, y: 0)
@@ -312,10 +340,25 @@ private final class GamepadView: UIView {
         backgroundColor = .clear
         isMultipleTouchEnabled = true
         for (view, button) in buttons {
-            view.onChange = { TouchGamepad.set(button, pressed: $0) }
+            view.onChange = { [weak self] pressed in
+                if pressed { self?.mouseMode = false }  // кнопка геймпада — снова геймпад
+                TouchGamepad.set(button, pressed: pressed)
+            }
             view.isHidden = true
             addSubview(view)
         }
+        keyboardButton.onChange = { [weak self] pressed in
+            if pressed { self?.keyboard.toggle() }
+        }
+        keyboardButton.isHidden = true
+        keyboardButton.accessibilityLabel = "Keyboard"
+        addSubview(keyboardButton)
+        // Клавиатура — режим мыши с клавиатурой: поле набрали — тут же можно нажать «Войти» на картинке.
+        keyboard.onShow = { [weak self] shown in
+            self?.keyboardButton.isOn = shown
+            if shown { self?.mouseMode = true }
+        }
+        addSubview(keyboard)
         FPSOverlay.shared.attachToggle(to: self, target: self, action: #selector(statsGesture(_:)))
     }
 
@@ -336,7 +379,8 @@ private final class GamepadView: UIView {
     }
 
     // Полосы — отступы безопасной области слева и справа (снизу картинка идёт до края). Остров камеры — посередине
-    // левой полосы: над ним LT, LB, «Вид», «Меню», под ним X и Y. Справа на том же месте — стрелки крестовины.
+    // левой полосы: над ним LT, LB, «Вид», «Меню», под ним X и Y. Справа под RB, напротив «Вида», — клавиатура, ниже
+    // стрелки крестовины (44 × 40: с клавиатурой выше 44 × 44 не помещаются над A).
     // Размеры подобраны на iPhone 17 Pro Max (высота 440 точек); на экранах ниже (17 Pro — 402) всё уменьшается
     // в масштабе: по высоте экрана и так, чтобы блок над островом (148 точек при масштабе 1) кончался не ближе
     // 6 точек к нему. Ширина полос (62 точки) у обоих одна — ширина кнопок от неё и идёт.
@@ -353,7 +397,7 @@ private final class GamepadView: UIView {
         let lx = left / 2, rx = w - right / 2
         let screenRadius = Self.displayCornerRadius(window?.windowScene?.screen)
         let edge: CGFloat = 4  // зазор от края экрана у угловых курков
-        let face = 46 * s, small = 30 * s, key = 44 * s, gap = 6 * s
+        let face = 46 * s, small = 30 * s, key = 44 * s, keyHeight = 40 * s, gap = 5 * s
         let xCenter = h - 114 * s, yCenter = h - 58 * s
         var frames: [TouchGamepad.Button: CGRect] = [
             .lt: CGRect(x: edge, y: edge, width: left - 2 * edge, height: 44 * s),
@@ -367,10 +411,11 @@ private final class GamepadView: UIView {
             .a: CGRect(x: rx - face / 2, y: xCenter - face / 2, width: face, height: face),
             .b: CGRect(x: rx - face / 2, y: yCenter - face / 2, width: face, height: face),
         ]
-        // Стрелки — столбиком посередине между RB и A.
-        let column = 4 * key + 3 * gap, top = (76 * s + (xCenter - face / 2)) / 2 - column / 2
+        let keyboardFrame = CGRect(x: rx - small / 2, y: 84 * s, width: small, height: small)
+        // Стрелки — столбиком посередине между клавиатурой и A.
+        let column = 4 * keyHeight + 3 * gap, top = (keyboardFrame.maxY + (xCenter - face / 2)) / 2 - column / 2
         for (i, arrow) in [TouchGamepad.Button.up, .left, .right, .down].enumerated() {
-            frames[arrow] = CGRect(x: rx - key / 2, y: top + CGFloat(i) * (key + gap), width: key, height: key)
+            frames[arrow] = CGRect(x: rx - key / 2, y: top + CGFloat(i) * (keyHeight + gap), width: key, height: keyHeight)
         }
         for (view, button) in buttons {
             guard let frame = frames[button] else { continue }
@@ -378,6 +423,8 @@ private final class GamepadView: UIView {
             view.scale = s
             view.cornerRadius = screenRadius - edge  // для угловых: дуга концентрична скруглению экрана
         }
+        keyboardButton.frame = keyboardFrame
+        keyboardButton.scale = s
     }
 
     // Радиус скругления экрана (закрытое свойство UIScreen); у iPhone 17 Pro Max около 62 точек.
@@ -392,6 +439,14 @@ private final class GamepadView: UIView {
         for touch in touches {
             let p = touch.location(in: self)
             guard gameRect.contains(p) else { continue }
+            // Режим мыши: палец — мышь с левой кнопкой (второй палец ни во что не превращается).
+            if mouseMode {
+                guard mouseTouch == nil else { continue }
+                mouseTouch = ObjectIdentifier(touch)
+                TouchGamepad.mouse(.down, at: p, clicks: max(touch.tapCount, 1))
+                showClick(at: p)
+                continue
+            }
             let left = p.x < gameRect.midX
             // Второе касание двойного: стик сразу, с нажатием (L3/R3), пока палец на экране.
             if showsButtons, let last = lastTap, touch.timestamp - last.time < Self.doubleTapSeconds,
@@ -413,7 +468,9 @@ private final class GamepadView: UIView {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
             let id = ObjectIdentifier(touch), p = touch.location(in: self)
-            if let stick = sticks[id] {
+            if id == mouseTouch {
+                TouchGamepad.mouse(.moved, at: p, clicks: 0)
+            } else if let stick = sticks[id] {
                 move(stick, to: p)
             } else if let start = pending[id], hypot(p.x - start.x, p.y - start.y) > Self.startDistance {
                 pending[id] = nil
@@ -438,7 +495,11 @@ private final class GamepadView: UIView {
     private func finish(_ touches: Set<UITouch>, tap: Bool) {
         for touch in touches {
             let id = ObjectIdentifier(touch)
-            if let stick = sticks.removeValue(forKey: id) {
+            if id == mouseTouch {
+                // Отпустить кнопку мыши, даже если режим уже сменили: палец был мышью до конца.
+                mouseTouch = nil
+                TouchGamepad.mouse(.up, at: touch.location(in: self), clicks: max(touch.tapCount, 1))
+            } else if let stick = sticks.removeValue(forKey: id) {
                 stick.base.removeFromSuperview()
                 TouchGamepad.setStick(left: stick.left, x: 0, y: 0)
                 if stick.thumb { TouchGamepad.set(stick.left ? .l3 : .r3, pressed: false) }
@@ -446,6 +507,7 @@ private final class GamepadView: UIView {
                 if mouseRect.contains(start) {
                     TouchGamepad.tap(at: start, clicks: max(touch.tapCount, 1))
                     showClick(at: start)
+                    if showsButtons { mouseMode = true }  // как BG3 после щелчка: дальше вся картинка — мышь
                 } else if showsButtons {
                     lastTap = (touch.timestamp, start)
                 }
@@ -506,6 +568,7 @@ private final class PadButton: UIView {
 
     var onChange: ((Bool) -> Void)?
     private var pressed = false
+    var isOn = false { didSet { if isOn != oldValue { paint() } } }  // включена (клавиатура на экране) — подсвечена
     var cornerRadius: CGFloat = 55 { didSet { setNeedsLayout() } }
     var scale: CGFloat = 1 { didSet { if scale != oldValue { applyScale() } } }  // подписи — вместе с кнопками
     private var symbol: String?
@@ -598,7 +661,12 @@ private final class PadButton: UIView {
 
     private func setPressed(_ pressed: Bool) {
         self.pressed = pressed
-        let color = pressed ? Self.active : Self.idle
+        paint()
+        onChange?(pressed)
+    }
+
+    private func paint() {
+        let color = pressed || isOn ? Self.active : Self.idle
         if case .corner = shape {
             CATransaction.begin()
             CATransaction.setDisableActions(true)  // без плавной смены цвета, как у остальных кнопок
@@ -607,10 +675,152 @@ private final class PadButton: UIView {
         } else {
             backgroundColor = color
         }
-        onChange?(pressed)
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) { setPressed(true) }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { setPressed(false) }
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { setPressed(false) }
+}
+
+// Клавиатура iPhone для полей ввода игры (вход в учётную запись Larian, имя героя, название сохранения): невидимый
+// UIKeyInput, каждый набранный символ сразу уходит в игру клавишей Mac (TouchGamepad.key → mp_appkit_key в MPAppKit),
+// и игра печатает его в поле, на котором фокус. Текст идёт кодом 0x0a (§ на ISO-клавиатуре Mac): в таблице клавиш BG3
+// (CocoaInputTranslator) к нему не привязано ни одно действие, поэтому буквы попадают в поле, но не жмут горячих
+// клавиш; Backspace, Return и Tab — своими настоящими кодами (их поле понимает как клавиши). Над клавиатурой — полоса:
+// Tab (следующее поле: почта → пароль), вставка из буфера (UIPasteControl — без запроса разрешения) и «спрятать».
+private final class KeyboardInput: UIView, UIKeyInput {
+    // Виртуальные коды клавиш Mac (kVK_… из Carbon).
+    private enum Key {
+        static let text: UInt16 = 0x0a    // kVK_ISO_Section: у BG3 без действия, символы — в очередь текста
+        static let enter: UInt16 = 0x24   // kVK_Return
+        static let tab: UInt16 = 0x30     // kVK_Tab
+        static let delete: UInt16 = 0x33  // kVK_Delete — Backspace
+    }
+    // Очередь текста BG3 берёт из одного нажатия не больше 31 байта UTF-8.
+    private static let maxBytes = 31
+
+    var onShow: ((Bool) -> Void)?
+    private weak var previousKey: UIWindow?  // ключевое окно до клавиатуры (окно игры): вернуть, когда спрячем
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        pasteConfiguration = UIPasteConfiguration(forAccepting: NSString.self)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func toggle() {
+        if isFirstResponder { hide() } else { show() }
+    }
+
+    func show() {
+        guard let window, !isFirstResponder else { return }
+        previousKey = window.windowScene?.keyWindow
+        window.makeKey()  // клавиатура — у первого ответчика ключевого окна, а ключевое — окно игры
+        _ = becomeFirstResponder()
+    }
+
+    func hide() {
+        if isFirstResponder { _ = resignFirstResponder() }
+    }
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        let became = super.becomeFirstResponder()
+        if became { onShow?(true) }
+        return became
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned {
+            onShow?(false)
+            if let previous = previousKey, previous !== window {
+                DispatchQueue.main.async { previous.makeKey() }
+            }
+            previousKey = nil
+        }
+        return resigned
+    }
+
+    // UIKeyInput. В поле игры может быть текст — Backspace не гаснет.
+    var hasText: Bool { true }
+
+    func insertText(_ text: String) {
+        for character in text {
+            switch character {
+            case "\n", "\r", "\r\n": TouchGamepad.key(Key.enter, "\r")
+            case "\t": TouchGamepad.key(Key.tab, "\t")
+            default:
+                let typed = String(character)
+                if typed.utf8.count <= Self.maxBytes { TouchGamepad.key(Key.text, typed) }
+            }
+        }
+    }
+
+    func deleteBackward() {
+        TouchGamepad.key(Key.delete, "\u{7f}")
+    }
+
+    // UITextInputTraits: почта и пароль уходят как набраны — без автоисправления, заглавной первой буквы, подсказок
+    // и «умных» кавычек и тире.
+    var autocorrectionType: UITextAutocorrectionType = .no
+    var autocapitalizationType: UITextAutocapitalizationType = .none
+    var spellCheckingType: UITextSpellCheckingType = .no
+    var smartQuotesType: UITextSmartQuotesType = .no
+    var smartDashesType: UITextSmartDashesType = .no
+    var smartInsertDeleteType: UITextSmartInsertDeleteType = .no
+    var inlinePredictionType: UITextInlinePredictionType = .no
+    var keyboardAppearance: UIKeyboardAppearance = .dark
+
+    // Вставка кнопкой полосы (пароль из менеджера паролей): как набор, без переводов строки по краям.
+    override func paste(itemProviders: [NSItemProvider]) {
+        guard let provider = itemProviders.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return }
+        _ = provider.loadObject(ofClass: NSString.self) { [weak self] object, _ in
+            guard let text = (object as? String)?.trimmingCharacters(in: .newlines), !text.isEmpty else { return }
+            DispatchQueue.main.async { self?.insertText(text) }
+        }
+    }
+
+    override var inputAccessoryView: UIView? { bar }
+
+    private lazy var bar: UIView = {
+        let bar = UIInputView(frame: CGRect(x: 0, y: 0, width: 0, height: 46), inputViewStyle: .keyboard)
+        bar.allowsSelfSizing = true
+        let tab = UIButton(configuration: Self.style(title: "Tab", symbol: "arrow.right.to.line"),
+                           primaryAction: UIAction { _ in TouchGamepad.key(Key.tab, "\t") })
+        var pasteStyle = UIPasteControl.Configuration()
+        pasteStyle.displayMode = .iconAndLabel
+        pasteStyle.cornerStyle = .capsule
+        let paste = UIPasteControl(configuration: pasteStyle)
+        paste.target = self
+        let done = UIButton(configuration: Self.style(title: nil, symbol: "keyboard.chevron.compact.down"),
+                            primaryAction: UIAction { [weak self] _ in self?.hide() })
+        done.accessibilityLabel = "Hide Keyboard"
+        let stack = UIStackView(arrangedSubviews: [tab, UIView(), paste, done])
+        stack.alignment = .center
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        bar.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: bar.safeAreaLayoutGuide.leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: bar.safeAreaLayoutGuide.trailingAnchor, constant: -12),
+            stack.topAnchor.constraint(equalTo: bar.topAnchor, constant: 6),
+            stack.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -6),
+            tab.heightAnchor.constraint(equalToConstant: 34),
+            paste.heightAnchor.constraint(equalToConstant: 34),
+            done.heightAnchor.constraint(equalToConstant: 34),
+        ])
+        return bar
+    }()
+
+    private static func style(title: String?, symbol: String) -> UIButton.Configuration {
+        var style = UIButton.Configuration.gray()
+        style.title = title
+        style.image = UIImage(systemName: symbol)
+        style.imagePadding = 6
+        style.cornerStyle = .capsule
+        return style
+    }
 }
