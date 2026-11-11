@@ -11,14 +11,14 @@ contain or distribute any game files: you can play only if your Steam account ow
 > [!IMPORTANT]
 > **You may use BG3iOS only if you own Baldur's Gate 3 on Steam.** See the [disclaimer](#disclaimer).
 
-![Running along the beach with the touch gamepad](media/beach.gif)
+![Running along the beach with the touch gamepad](media/beach.webp)
 
-![The Lower City](media/lower-city.gif)
+![The Lower City](media/lower-city.webp)
 
-![A cutscene](media/cutscene.gif)
+![A cutscene](media/cutscene.webp)
 
-*Recorded on iPhone 17 Pro Max. The GIFs have 12 frames per second to keep them small; the counter in the top right
-corner shows the game's real frame rate.*
+*Recorded on iPhone 17 Pro Max. The animations play at 30 frames per second, like the game; the counter in the top
+right corner shows the game's frame rate.*
 
 ## Features
 
