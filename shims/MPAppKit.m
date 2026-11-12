@@ -88,11 +88,17 @@ static UIWindowScene *mp_scene(void)
 static UIEdgeInsets mp_safe_insets(void)
 {
     if ([NSUserDefaults.standardUserDefaults boolForKey:@"MPFullScreen"]) return UIEdgeInsetsZero;
+    // Почти квадратный экран — iPhone Duo: картинка во весь экран, кнопки геймпада поверх неё (TouchGamepad.shape
+    // в хосте; граница та же — 1,7). Справа iOS держит 84 точки под вертикальную панель, но строка состояния у нас
+    // спрятана, а острова на внутреннем экране нет.
+    UIWindowScene *scene = mp_scene();
+    CGSize size = scene.coordinateSpace.bounds.size;
+    if (MIN(size.width, size.height) > 0 && MAX(size.width, size.height) < MIN(size.width, size.height) * 1.7)
+        return UIEdgeInsetsZero;
     static UIEdgeInsets cached;
     static BOOL known;
     if (known) return cached;
     // Окно, ещё не прошедшее раскладку, отдаёт нулевые отступы — раскладываем принудительно.
-    UIWindowScene *scene = mp_scene();
     for (UIWindow *window in scene.windows) {
         [window setNeedsLayout];
         [window layoutIfNeeded];

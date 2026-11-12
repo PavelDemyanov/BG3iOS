@@ -70,7 +70,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             Task { @MainActor in await SteamCenter.shared.listCloudToLog() }
         } else if developer, arguments.contains("--gamepad-preview") {
             // Раскладка экранного геймпада без игры (проверка в симуляторе): серый экран, кнопки и красный контур
-            // Dynamic Island — симулятор его на снимках не рисует.
+            // Dynamic Island — симулятор его на снимках не рисует; -MacportPreviewImage ПУТЬ — кадр игры под кнопками.
             let controller = IslandOutlineController()
             controller.view.backgroundColor = UIColor(white: 0.17, alpha: 1)
             window?.rootViewController = controller
@@ -84,6 +84,16 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             let home = UIHostingController(rootView: HomeView(openLab: openLab, play: { [weak self] app, fps in
                 // Ещё раз у самого запуска: без лицензии Steam игра не стартует.
                 guard SteamCenter.shared.canPlay else { return }
+                // Сложенный iPhone Duo: разрешение игры считается по окну, а играем на внутреннем экране.
+                if let scene = self?.window?.windowScene,
+                   TouchGamepad.shape(of: scene.coordinateSpace.bounds.size) == .folded {
+                    let alert = UIAlertController(title: "Unfold your iPhone",
+                                                  message: "Baldur's Gate 3 plays on the inner display.",
+                                                  preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: "OK", style: .default))
+                    self?.window?.rootViewController?.present(alert, animated: true)
+                    return
+                }
                 Task { @MainActor in
                     await SteamCenter.shared.beforePlay()
                     guard await SteamCenter.shared.prepareIfStale() else { return }
@@ -442,17 +452,32 @@ enum Lab {
 // Контур Dynamic Island для --gamepad-preview.
 final class IslandOutlineController: UIViewController {
     private let island = UIView()
+    private let game = UIImageView()  // кадр игры (-MacportPreviewImage путь на Mac) на месте картинки
 
     override func viewDidLoad() {
         super.viewDidLoad()
         island.layer.borderColor = UIColor.red.cgColor
         island.layer.borderWidth = 1
         island.layer.cornerRadius = 18
+        if let path = UserDefaults.standard.string(forKey: "MacportPreviewImage") {
+            game.image = UIImage(contentsOfFile: path)
+            game.contentMode = .scaleAspectFill
+            game.clipsToBounds = true
+            view.addSubview(game)
+            TouchGamepad.onGameRect = { [weak self] rect in
+                guard let self, let size = game.image?.size, rect.height > 0 else { return }
+                game.frame = rect
+                // Почти те же пропорции — растянуть (интерфейс игры у краёв не срезается), иначе — обрезать.
+                let ratio = (rect.width / rect.height) / (size.width / size.height)
+                game.contentMode = abs(ratio - 1) < 0.1 ? .scaleToFill : .scaleAspectFill
+            }
+        }
         view.addSubview(island)
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         island.frame = TouchGamepad.island(in: view.bounds)
+        island.isHidden = TouchGamepad.shape(of: view.bounds.size) != .bars  // у Duo острова слева нет
     }
 }

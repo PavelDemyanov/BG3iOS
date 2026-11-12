@@ -68,18 +68,21 @@ enum BG3Graphics {
         return result
     }
 
-    // Разрешение — ступень 7/12 из списка режимов MPCoreGraphics: окно игры (сцена без левого и правого отступов
-    // безопасной области, как в MPAppKit) в пикселях, округлённое до чётного. 17 Pro Max — 1456×770, 17 Pro — 1312×704.
-    // Размер не из списка игра не примет и вернёт родной.
+    // Разрешение — ступень из списка режимов MPCoreGraphics: окно игры в пикселях, округлённое до чётного. Окно —
+    // как в MPAppKit: на длинном экране сцена без левого и правого отступов безопасной области, ступень 7/12
+    // (17 Pro Max — 1456×770, 17 Pro — 1312×704); на раскрытом iPhone Duo — вся сцена, ступень 1/2 (1426×1004:
+    // экран больше, а видеокарта A20 Pro ненамного сильнее — пикселей на треть больше, чем у 17 Pro Max; проверить
+    // на устройстве). Размер не из списка игра не примет и вернёт родной.
     static func resolution() -> (width: Int, height: Int) {
         let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
         let bounds = scene?.coordinateSpace.bounds ?? UIScreen.main.bounds
-        let insets = scene?.windows.map(\.safeAreaInsets).first { $0.left > 0 || $0.right > 0 } ?? .zero
         let scale = scene?.screen.scale ?? UIScreen.main.scale
         let long = max(bounds.width, bounds.height), short = min(bounds.width, bounds.height)
+        func step(_ v: CGFloat, _ k: CGFloat) -> Int { Int((v * k / 2).rounded()) * 2 }
+        if TouchGamepad.shape(of: bounds.size) != .bars { return (step(long * scale, 1 / 2), step(short * scale, 1 / 2)) }
+        let insets = scene?.windows.map(\.safeAreaInsets).first { $0.left > 0 || $0.right > 0 } ?? .zero
         let width = (long - insets.left - insets.right) * scale, height = (short - insets.top) * scale
-        func step(_ v: CGFloat) -> Int { Int((v * 7 / 12 / 2).rounded()) * 2 }
-        return (step(width), step(height))
+        return (step(width, 7 / 12), step(height, 7 / 12))
     }
 
     static func settings() -> String {

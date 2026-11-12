@@ -28,7 +28,8 @@ right corner shows the game's frame rate.*
 - **Choose the game language**: 15 languages for in-game text. The iPhone's language is used by default. Voices are in
   English, as in every version of the game.
 - **Built-in touch gamepad that doesn't cover the game**:
-  - The buttons sit in the black bars on both sides of the picture.
+  - The buttons sit in the black bars on both sides of the picture (iPhone 17 Pro and 17 Pro Max; for iPhone Duo, see
+    below).
   - The sticks appear wherever you put your finger (left half: left stick, right half: right stick) and disappear when
     you lift it. A quick double tap clicks the stick (L3/R3).
   - A short tap in the top third of the picture is a mouse click, and it switches to mouse mode: the whole picture then
@@ -40,6 +41,11 @@ right corner shows the game's frame rate.*
 - **Or play with a game controller**: choose **Controls → Game Controller** under the Play buttons and pair a DualSense,
   DualShock 4 or Xbox controller in Settings › Bluetooth (DualSense: hold PS and Create until the light bar blinks).
   The on-screen buttons are hidden while it's connected and come back if it disconnects.
+- **iPhone Duo**: unfolded, the game fills the whole inner display, and the gamepad buttons sit over the picture,
+  semi-transparent: the D-pad and the A/B/X/Y buttons in the lower corners with the triggers and bumpers above them, and
+  View, Menu and the keyboard at the top center. When any controller is connected, the buttons hide, whatever you
+  chose in Controls. Folded, BG3iOS asks you to unfold the phone. Rotating the unfolded phone doesn't rotate the game.
+  This was built and checked in the Xcode simulator only: nobody has tried it on a real iPhone Duo yet.
 - **Show or hide the FPS counter**: start with **Play with FPS Counter**, or hold three fingers on the screen for about
   a second during play.
 - **Steam Cloud saves**: saves sync when BG3iOS opens and before you play, so you can continue on your PC or Mac. Copies
@@ -57,7 +63,7 @@ right corner shows the game's frame rate.*
 
 | | |
 |---|---|
-| iPhone | **Tested on iPhone 17 Pro Max** (iOS 27). It may also work on iPhone 17 Pro. Earlier models haven't been tested. Minimum: **8 GB of RAM**. |
+| iPhone | **Tested on iPhone 17 Pro Max** (iOS 27). It may also work on iPhone 17 Pro and iPhone Air; iPhone Duo is supported but hasn't been tested on a real device. It needs **12 GB of RAM**: the game uses up to about 7.5 GB, and iOS gives a single app that much only on 12 GB models. iPhones with 8 GB (15 Pro, the whole 16 lineup, the base iPhone 17) won't run it. |
 | iOS | 26 or later |
 | Free space | **About 165 GB**: the game (156 GB) plus a 5% reserve |
 | Steam | An account that owns **Baldur's Gate 3** (the Mac version comes with the Steam purchase) |

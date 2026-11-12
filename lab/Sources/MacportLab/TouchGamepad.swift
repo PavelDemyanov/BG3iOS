@@ -38,6 +38,17 @@ enum TouchGamepad {
 
     enum Button { case a, b, x, y, lb, rb, lt, rt, view, menu, up, down, left, right, l3, r3 }
 
+    // Форма окна — по его размеру, не по модели. Длинный экран (17 Pro, 17 Pro Max) — кнопки в боковых полосах.
+    // Почти квадратный — iPhone Duo: раскрытый (внутренний экран, 951 × 669 точек) — картинка во весь экран, кнопки
+    // поверх неё; сложенный (внешний, 678 × 466) — не играем, просим раскрыть.
+    enum Shape { case bars, overPicture, folded }
+
+    static func shape(of size: CGSize) -> Shape {
+        let long = max(size.width, size.height), short = min(size.width, size.height)
+        guard short > 0, long < short * 1.7 else { return .bars }
+        return short < 560 ? .folded : .overPicture
+    }
+
     // Игра ищет контроллеры, когда её окно уже на экране: подключаем, когда ключевым станет окно игры
     // (уровень выше окна хоста).
     static func startWhenGameWindowIsKey(host: UIWindow?, log: @escaping (String) -> Void) {
@@ -69,11 +80,8 @@ enum TouchGamepad {
         window = overlay
         view = pad
         haptic.prepare()
-        if Controls.mode == .controller {
-            followControllers()
-        } else {
-            showButtons(true)
-        }
+        pad.shape = shape(of: scene.coordinateSpace.bounds.size)  // до первой раскладки: от формы зависят кнопки
+        followControllers()
     }
 
     // Кнопки и стики на экране; первый показ подключает к игре наш контроллер.
@@ -82,7 +90,7 @@ enum TouchGamepad {
         if show, controller == nil { connect() }
     }
 
-    // Играют контроллером: кнопки на экране — только пока не подключено ни одного.
+    // Кнопки на экране и подключение контроллеров (updateButtons).
     private static func followControllers() {
         updateButtons(gone: nil)
         for name in [Notification.Name.GCControllerDidConnect, .GCControllerDidDisconnect] {
@@ -106,12 +114,22 @@ enum TouchGamepad {
         }
     }
 
-    private static func updateButtons(gone: GCController?) {
+    // Кнопки на экране — пока не подключено ни одного контроллера. Исключение — Touch Gamepad на длинном экране:
+    // там кнопки в чёрных полосах и игре не мешают, поэтому остаются и с контроллером. На Duo они поверх картинки —
+    // с контроллером прячутся при любом выборе; сложенный Duo — кнопок нет совсем (вместо игры просьба раскрыть).
+    // Зовётся при подключении и отключении контроллера и при смене формы окна (GamepadView).
+    fileprivate static func updateButtons(gone: GCController? = nil) {
+        guard let view else { return }
         let pads = Controls.connected(except: gone)
-        guard view?.showsButtons != pads.isEmpty || gone == nil else { return }
-        showButtons(pads.isEmpty)
-        log(pads.isEmpty ? "контроллера нет — экранный геймпад"
-            : "контроллер: \(pads.map(Controls.name).joined(separator: ", ")), экранные кнопки спрятаны")
+        let show = view.shape != .folded && (pads.isEmpty || (Controls.mode == .touch && view.shape == .bars))
+        guard view.showsButtons != show else { return }
+        showButtons(show)
+        if view.shape == .folded {
+            log("Duo сложен — кнопки спрятаны")
+        } else {
+            log(show ? (pads.isEmpty ? "контроллера нет — экранный геймпад" : "экранный геймпад и контроллер")
+                : "контроллер: \(pads.map(Controls.name).joined(separator: ", ")), экранные кнопки спрятаны")
+        }
     }
 
     private static func connect() {
@@ -193,6 +211,9 @@ enum TouchGamepad {
             pad.valueChangedHandler?(pad, input)
         }
     }
+
+    // Где картинка игры — для --gamepad-preview (кадр игры под кнопками, -MacportPreviewImage).
+    static var onGameRect: ((CGRect) -> Void)?
 
     // Dynamic Island в альбомной ориентации (LandscapeRight: верх телефона слева) — у всех iPhone с островом
     // (14 Pro … 17 Pro Max) 126 × 37 точек, в 11 точках от края, посередине по высоте.
@@ -300,6 +321,20 @@ private final class GamepadView: UIView {
     // Режим мыши (только с кнопками на экране): вся картинка — мышь, стиков нет. Мышь — один палец, первый.
     private var mouseMode = false
     private var mouseTouch: ObjectIdentifier?
+    var shape = TouchGamepad.Shape.bars  // форма окна (TouchGamepad.shape), обновляется при раскладке
+    // Сложенный Duo: чёрный экран с просьбой раскрыть, касания до игры не доходят.
+    private let foldedCover: UILabel = {
+        let label = UILabel()
+        label.text = "Unfold your iPhone to keep playing"
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 22, weight: .semibold)
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.backgroundColor = .black
+        label.isUserInteractionEnabled = true
+        label.isHidden = true
+        return label
+    }()
 
     // Кнопки и стики. Прячутся — всё нажатое отпускается, клавиатура уходит.
     var showsButtons = false {
@@ -359,6 +394,7 @@ private final class GamepadView: UIView {
             if shown { self?.mouseMode = true }
         }
         addSubview(keyboard)
+        addSubview(foldedCover)
         FPSOverlay.shared.attachToggle(to: self, target: self, action: #selector(statsGesture(_:)))
     }
 
@@ -386,6 +422,18 @@ private final class GamepadView: UIView {
     // 6 точек к нему. Ширина полос (62 точки) у обоих одна — ширина кнопок от неё и идёт.
     override func layoutSubviews() {
         super.layoutSubviews()
+        defer { TouchGamepad.onGameRect?(gameRect) }
+        let shape = TouchGamepad.shape(of: bounds.size)
+        foldedCover.frame = bounds
+        foldedCover.isHidden = shape != .folded
+        if shape != self.shape {
+            self.shape = shape
+            TouchGamepad.updateButtons()
+        }
+        if shape != .bars {
+            layoutOverPicture()
+            return
+        }
         let left = max(safeAreaInsets.left, 50), right = max(safeAreaInsets.right, 50)
         let w = bounds.width, h = bounds.height
         let island = TouchGamepad.island(in: bounds)
@@ -422,9 +470,53 @@ private final class GamepadView: UIView {
             view.frame = frame
             view.scale = s
             view.cornerRadius = screenRadius - edge  // для угловых: дуга концентрична скруглению экрана
+            view.alpha = 1
         }
         keyboardButton.frame = keyboardFrame
         keyboardButton.scale = s
+        keyboardButton.alpha = 1
+    }
+
+    // iPhone Duo раскрыт: боковых полос нет, картинка во весь экран, кнопки поверх неё, полупрозрачные. По нижним
+    // углам, куда ложатся большие пальцы: справа ромб ABXY, над ним RT и RB; слева крестовина, над ней LT и LB.
+    // «Вид», «Меню» и клавиатура — в ряд сверху посередине. Стики, как и на длинном экране, — под пальцем на картинке.
+    // Размеры — на внутренний экран (высота 669 точек), на другой высоте — в масштабе. На сложенном Duo раскладка та
+    // же, но кнопки спрятаны (TouchGamepad.updateButtons).
+    private func layoutOverPicture() {
+        let w = bounds.width, h = bounds.height, s = min(1.2, max(0.7, h / 669))
+        func box(_ cx: CGFloat, _ cy: CGFloat, _ bw: CGFloat, _ bh: CGFloat) -> CGRect {
+            CGRect(x: cx - bw * s / 2, y: cy - bh * s / 2, width: bw * s, height: bh * s)
+        }
+        var frames: [TouchGamepad.Button: CGRect] = [:]
+        // Ромб: центр, смещение кнопок от центра, размер кнопки; кнопки — верх, лево, право, низ.
+        func diamond(_ cx: CGFloat, _ cy: CGFloat, _ off: CGFloat, _ size: CGFloat, _ b: [TouchGamepad.Button]) {
+            frames[b[0]] = box(cx, cy - off * s, size, size)
+            frames[b[1]] = box(cx - off * s, cy, size, size)
+            frames[b[2]] = box(cx + off * s, cy, size, size)
+            frames[b[3]] = box(cx, cy + off * s, size, size)
+        }
+        gameRect = bounds
+        stickRadius = 64 * s
+        let cy = h - 96 * s, lx = 96 * s, rx = w - 96 * s
+        diamond(rx, cy, 50, 52, [.y, .x, .b, .a])
+        diamond(lx, cy, 48, 46, [.up, .left, .right, .down])
+        frames[.lb] = box(lx, cy - 112 * s, 100, 34)
+        frames[.lt] = box(lx, cy - 156 * s, 100, 42)
+        frames[.rb] = box(rx, cy - 112 * s, 100, 34)
+        frames[.rt] = box(rx, cy - 156 * s, 100, 42)
+        frames[.view] = box(w / 2 - 44 * s, 26 * s, 36, 36)
+        frames[.menu] = box(w / 2, 26 * s, 36, 36)
+        mouseRect = CGRect(x: Self.mouseInset, y: 0, width: w - 2 * Self.mouseInset, height: h / 3)
+        for (view, button) in buttons {
+            guard let frame = frames[button] else { continue }
+            view.frame = frame
+            view.scale = 1.1 * s
+            view.cornerRadius = 0  // курки не в углу экрана — обычный прямоугольник (PadButton.cornerPath)
+            view.alpha = 0.8
+        }
+        keyboardButton.frame = box(w / 2 + 44 * s, 26 * s, 36, 36)
+        keyboardButton.scale = 1.1 * s
+        keyboardButton.alpha = 0.8
     }
 
     // Радиус скругления экрана (закрытое свойство UIScreen); у iPhone 17 Pro Max около 62 точек.
@@ -436,6 +528,7 @@ private final class GamepadView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard shape != .folded else { return }  // касания заставки «раскройте» доходят сюда — игре их не отдаём
         for touch in touches {
             let p = touch.location(in: self)
             guard gameRect.contains(p) else { continue }
@@ -635,7 +728,10 @@ private final class PadButton: UIView {
             outline.path = cornerPath(left: left)
             CATransaction.commit()
             // Подпись — ближе к внутреннему углу, где у фигуры больше места.
-            label.frame = bounds.offsetBy(dx: left ? bounds.width * 0.12 : -bounds.width * 0.12, dy: bounds.height * 0.12)
+            if cornerRadius > 0 {  // на Duo курки не в углу экрана (cornerRadius 0) — подпись по центру
+                label.frame = bounds.offsetBy(dx: left ? bounds.width * 0.12 : -bounds.width * 0.12,
+                                              dy: bounds.height * 0.12)
+            }
         }
     }
 
